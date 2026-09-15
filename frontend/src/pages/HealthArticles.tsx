@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+
 import { Link } from "react-router-dom";
+
 import {
   ArrowRight,
   BookOpen,
@@ -8,6 +10,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
+
 import api from "../services/api";
 
 type BlogPost = {
@@ -23,14 +26,34 @@ type BlogPost = {
   updatedAt: string;
 };
 
-function calculateReadTime(content: string) {
+const BACKEND_BASE_URL = "http://localhost:5000";
+
+function getBlogImageUrl(image: string | null | undefined): string {
+  if (!image) {
+    return "";
+  }
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  return image.startsWith("/")
+    ? `${BACKEND_BASE_URL}${image}`
+    : `${BACKEND_BASE_URL}/${image}`;
+}
+
+function calculateReadTime(content: string): string {
   const words = content.trim().split(/\s+/).filter(Boolean).length;
+
   const minutes = Math.max(1, Math.ceil(words / 200));
+
   return `${minutes} min read`;
 }
 
-function formatDate(date: string | null) {
-  if (!date) return "Recently published";
+function formatDate(date: string | null): string {
+  if (!date) {
+    return "Recently published";
+  }
 
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -41,8 +64,11 @@ function formatDate(date: string | null) {
 
 function HealthArticles() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
+
   const [search, setSearch] = useState("");
+
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState("");
 
   const loadArticles = async () => {
@@ -55,6 +81,7 @@ function HealthArticles() {
       setPosts(response.data.data ?? []);
     } catch (err) {
       console.error("Failed to load health articles:", err);
+
       setError(
         "We couldn't load the health articles right now. Please try again.",
       );
@@ -85,7 +112,9 @@ function HealthArticles() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Hero */}
+      {/* ======================================================
+          HERO
+      ====================================================== */}
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
@@ -107,7 +136,9 @@ function HealthArticles() {
       </section>
 
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Search */}
+        {/* ======================================================
+            SEARCH
+        ====================================================== */}
         <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="relative max-w-2xl">
             <Search
@@ -125,7 +156,9 @@ function HealthArticles() {
           </div>
         </section>
 
-        {/* Loading */}
+        {/* ======================================================
+            LOADING
+        ====================================================== */}
         {loading && (
           <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
             <RefreshCw
@@ -139,7 +172,9 @@ function HealthArticles() {
           </div>
         )}
 
-        {/* Error */}
+        {/* ======================================================
+            ERROR
+        ====================================================== */}
         {!loading && error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-12 text-center">
             <p className="font-semibold text-red-800">{error}</p>
@@ -155,7 +190,9 @@ function HealthArticles() {
           </div>
         )}
 
-        {/* Articles */}
+        {/* ======================================================
+            ARTICLES
+        ====================================================== */}
         {!loading && !error && (
           <>
             <div className="mb-5 flex items-center justify-between">
@@ -173,60 +210,80 @@ function HealthArticles() {
 
             {filteredPosts.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {filteredPosts.map((post) => (
-                  <article
-                    key={post.id}
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                  >
-                    {/* Image */}
-                    {post.image ? (
-                      <div className="aspect-[16/9] overflow-hidden bg-slate-100">
-                        <img
-                          src={post.image}
-                          alt={post.title}
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                        />
+                {filteredPosts.map((post) => {
+                  const imageUrl = getBlogImageUrl(post.image);
+
+                  return (
+                    <article
+                      key={post.id}
+                      className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                    >
+                      {/* ==================================================
+                            IMAGE
+                        ================================================== */}
+                      {imageUrl ? (
+                        <div className="aspect-[16/9] overflow-hidden bg-slate-100">
+                          <img
+                            src={imageUrl}
+                            alt={post.title}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                            onError={(event) => {
+                              console.error(
+                                "Failed to load blog image:",
+                                imageUrl,
+                              );
+
+                              event.currentTarget.style.display = "none";
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100">
+                          <BookOpen size={48} className="text-emerald-300" />
+                        </div>
+                      )}
+
+                      {/* ==================================================
+                            ARTICLE CONTENT
+                        ================================================== */}
+                      <div className="p-6">
+                        <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays size={14} />
+
+                            {formatDate(post.publishedAt)}
+                          </span>
+
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock3 size={14} />
+
+                            {calculateReadTime(post.content)}
+                          </span>
+                        </div>
+
+                        <h3 className="text-xl font-bold leading-7 text-slate-900">
+                          {post.title}
+                        </h3>
+
+                        <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
+                          {post.excerpt ||
+                            post.content.substring(0, 160) + "..."}
+                        </p>
+
+                        <Link
+                          to={`/health/articles/${post.slug}`}
+                          className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 transition group-hover:text-emerald-800"
+                        >
+                          Read Article
+                          <ArrowRight
+                            size={16}
+                            className="transition-transform group-hover:translate-x-1"
+                          />
+                        </Link>
                       </div>
-                    ) : (
-                      <div className="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100">
-                        <BookOpen size={48} className="text-emerald-300" />
-                      </div>
-                    )}
-
-                    <div className="p-6">
-                      <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                        <span className="inline-flex items-center gap-1.5">
-                          <CalendarDays size={14} />
-                          {formatDate(post.publishedAt)}
-                        </span>
-
-                        <span className="inline-flex items-center gap-1.5">
-                          <Clock3 size={14} />
-                          {calculateReadTime(post.content)}
-                        </span>
-                      </div>
-
-                      <h3 className="text-xl font-bold leading-7 text-slate-900">
-                        {post.title}
-                      </h3>
-
-                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
-                        {post.excerpt || post.content.substring(0, 160) + "..."}
-                      </p>
-
-                      <Link
-                        to={`/health/articles/${post.slug}`}
-                        className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 transition group-hover:text-emerald-800"
-                      >
-                        Read Article
-                        <ArrowRight
-                          size={16}
-                          className="transition-transform group-hover:translate-x-1"
-                        />
-                      </Link>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">

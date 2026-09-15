@@ -1,5 +1,8 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import type { PrescriptionStatus } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import {
   createPrescription,
@@ -10,19 +13,16 @@ import {
   updatePrescriptionStatus,
 } from "../services/prescriptionService.js";
 
-import {
-  errorResponse,
-  successResponse,
-} from "../utils/apiResponse.js";
-
-type AuthenticatedUser = {
-  userId?: string;
-  email?: string;
-  role?: string;
-};
+import { errorResponse, successResponse } from "../utils/apiResponse.js";
 
 type AuthenticatedRequest = Request & {
-  user?: AuthenticatedUser;
+  user?: {
+    userId?: string;
+    email?: string;
+    role?: string;
+  };
+
+  file?: Express.Multer.File;
 };
 
 const allowedStatuses: PrescriptionStatus[] = [
@@ -33,16 +33,57 @@ const allowedStatuses: PrescriptionStatus[] = [
   "FULFILLED",
 ];
 
+function getFileExtension(file: Express.Multer.File): string {
+  switch (file.mimetype) {
+    case "image/jpeg":
+      return ".jpg";
+
+    case "image/png":
+      return ".png";
+
+    case "image/webp":
+      return ".webp";
+
+    case "application/pdf":
+      return ".pdf";
+
+    default:
+      return path.extname(file.originalname).toLowerCase() || "";
+  }
+}
+
+async function savePrescriptionFile(
+  file: Express.Multer.File,
+): Promise<string> {
+  const uploadDirectory = path.join(process.cwd(), "uploads", "prescriptions");
+
+  await mkdir(uploadDirectory, {
+    recursive: true,
+  });
+
+  const extension = getFileExtension(file);
+
+  const filename = `${randomUUID()}${extension}`;
+
+  const filePath = path.join(uploadDirectory, filename);
+
+  await writeFile(filePath, file.buffer);
+
+  return `/uploads/prescriptions/${filename}`;
+}
+
 /* ============================================================
    ADMIN
    ============================================================ */
 
 export async function getPrescriptions(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
 ): Promise<void> {
+  const request = req as AuthenticatedRequest;
+
   try {
-    const role = req.user?.role;
+    const role = request.user?.role;
 
     if (role === "ADMIN") {
       const prescriptions = await getAllPrescriptions();
@@ -56,10 +97,11 @@ export async function getPrescriptions(
       return;
     }
 
-    const userId = req.user?.userId;
+    const userId = request.user?.userId;
 
     if (!userId || userId.trim() === "") {
       errorResponse(res, "Authentication required", 401);
+
       return;
     }
 
@@ -73,96 +115,69 @@ export async function getPrescriptions(
   } catch (error) {
     console.error("Get prescriptions error:", error);
 
-    errorResponse(
-      res,
-      "Failed to retrieve prescriptions",
-      500,
-    );
+    errorResponse(res, "Failed to retrieve prescriptions", 500);
   }
 }
 
 export async function getSinglePrescription(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
 ): Promise<void> {
+  const request = req as AuthenticatedRequest;
+
   try {
     const { id } = req.params;
 
     if (typeof id !== "string" || id.trim() === "") {
-      errorResponse(
-        res,
-        "Prescription ID is required",
-        400,
-      );
+      errorResponse(res, "Prescription ID is required", 400);
+
       return;
     }
 
-    if (req.user?.role === "ADMIN") {
+    if (request.user?.role === "ADMIN") {
       const prescription = await getPrescriptionById(id);
 
       if (!prescription) {
-        errorResponse(
-          res,
-          "Prescription not found",
-          404,
-        );
+        errorResponse(res, "Prescription not found", 404);
+
         return;
       }
 
-      successResponse(
-        res,
-        prescription,
-        "Prescription retrieved successfully",
-      );
+      successResponse(res, prescription, "Prescription retrieved successfully");
 
       return;
     }
 
-    const userId = req.user?.userId;
+    const userId = request.user?.userId;
 
     if (!userId || userId.trim() === "") {
-      errorResponse(
-        res,
-        "Authentication required",
-        401,
-      );
+      errorResponse(res, "Authentication required", 401);
+
       return;
     }
 
-    const prescription = await getPrescriptionForUser(
-      userId,
-      id,
-    );
+    const prescription = await getPrescriptionForUser(userId, id);
 
     if (!prescription) {
-      errorResponse(
-        res,
-        "Prescription not found",
-        404,
-      );
+      errorResponse(res, "Prescription not found", 404);
+
       return;
     }
 
-    successResponse(
-      res,
-      prescription,
-      "Prescription retrieved successfully",
-    );
+    successResponse(res, prescription, "Prescription retrieved successfully");
   } catch (error) {
     console.error("Get prescription error:", error);
 
-    errorResponse(
-      res,
-      "Failed to retrieve prescription",
-      500,
-    );
+    errorResponse(res, "Failed to retrieve prescription", 500);
   }
 }
 
 export async function changePrescriptionStatus(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
 ): Promise<void> {
+  const request = req as AuthenticatedRequest;
+
   try {
     const { id } = req.params;
 
@@ -171,40 +186,30 @@ export async function changePrescriptionStatus(
     };
 
     if (typeof id !== "string" || id.trim() === "") {
-      errorResponse(
-        res,
-        "Prescription ID is required",
-        400,
-      );
+      errorResponse(res, "Prescription ID is required", 400);
+
       return;
     }
 
     if (!status || !allowedStatuses.includes(status)) {
-      errorResponse(
-        res,
-        "Invalid prescription status",
-        400,
-      );
+      errorResponse(res, "Invalid prescription status", 400);
+
       return;
     }
 
     const prescription = await getPrescriptionById(id);
 
     if (!prescription) {
-      errorResponse(
-        res,
-        "Prescription not found",
-        404,
-      );
+      errorResponse(res, "Prescription not found", 404);
+
       return;
     }
 
-    const updatedPrescription =
-      await updatePrescriptionStatus(
-        id,
-        status,
-        req.user?.userId,
-      );
+    const updatedPrescription = await updatePrescriptionStatus(
+      id,
+      status,
+      request.user?.userId,
+    );
 
     successResponse(
       res,
@@ -212,16 +217,9 @@ export async function changePrescriptionStatus(
       "Prescription status updated successfully",
     );
   } catch (error) {
-    console.error(
-      "Update prescription status error:",
-      error,
-    );
+    console.error("Update prescription status error:", error);
 
-    errorResponse(
-      res,
-      "Failed to update prescription status",
-      500,
-    );
+    errorResponse(res, "Failed to update prescription status", 500);
   }
 }
 
@@ -230,23 +228,21 @@ export async function changePrescriptionStatus(
    ============================================================ */
 
 export async function getMyPrescriptions(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
 ): Promise<void> {
+  const request = req as AuthenticatedRequest;
+
   try {
-    const userId = req.user?.userId;
+    const userId = request.user?.userId;
 
     if (!userId || userId.trim() === "") {
-      errorResponse(
-        res,
-        "Authentication required",
-        401,
-      );
+      errorResponse(res, "Authentication required", 401);
+
       return;
     }
 
-    const prescriptions =
-      await getPrescriptionsForUser(userId);
+    const prescriptions = await getPrescriptionsForUser(userId);
 
     successResponse(
       res,
@@ -254,128 +250,89 @@ export async function getMyPrescriptions(
       "Your prescriptions retrieved successfully",
     );
   } catch (error) {
-    console.error(
-      "Get my prescriptions error:",
-      error,
-    );
+    console.error("Get my prescriptions error:", error);
 
-    errorResponse(
-      res,
-      "Failed to retrieve your prescriptions",
-      500,
-    );
+    errorResponse(res, "Failed to retrieve your prescriptions", 500);
   }
 }
 
 export async function getMyPrescription(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
 ): Promise<void> {
+  const request = req as AuthenticatedRequest;
+
   try {
-    const userId = req.user?.userId;
+    const userId = request.user?.userId;
+
     const { id } = req.params;
 
     if (!userId || userId.trim() === "") {
-      errorResponse(
-        res,
-        "Authentication required",
-        401,
-      );
+      errorResponse(res, "Authentication required", 401);
+
       return;
     }
 
     if (typeof id !== "string" || id.trim() === "") {
-      errorResponse(
-        res,
-        "Prescription ID is required",
-        400,
-      );
+      errorResponse(res, "Prescription ID is required", 400);
+
       return;
     }
 
-    const prescription =
-      await getPrescriptionForUser(userId, id);
+    const prescription = await getPrescriptionForUser(userId, id);
 
     if (!prescription) {
-      errorResponse(
-        res,
-        "Prescription not found",
-        404,
-      );
+      errorResponse(res, "Prescription not found", 404);
+
       return;
     }
 
-    successResponse(
-      res,
-      prescription,
-      "Prescription retrieved successfully",
-    );
+    successResponse(res, prescription, "Prescription retrieved successfully");
   } catch (error) {
-    console.error(
-      "Get my prescription error:",
-      error,
-    );
+    console.error("Get my prescription error:", error);
 
-    errorResponse(
-      res,
-      "Failed to retrieve prescription",
-      500,
-    );
+    errorResponse(res, "Failed to retrieve prescription", 500);
   }
 }
 
 export async function submitPrescription(
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
 ): Promise<void> {
+  const request = req as AuthenticatedRequest;
+
   try {
-    const userId = req.user?.userId;
+    const userId = request.user?.userId;
 
     if (!userId || userId.trim() === "") {
-      errorResponse(
-        res,
-        "Authentication required",
-        401,
-      );
+      errorResponse(res, "Authentication required", 401);
+
       return;
     }
 
-    const { fileUrl, notes } = req.body as {
-      fileUrl?: string;
-      notes?: string;
-    };
+    const file = request.file;
 
-    if (
-      typeof fileUrl !== "string" ||
-      fileUrl.trim() === ""
-    ) {
-      errorResponse(
-        res,
-        "Prescription file is required",
-        400,
-      );
+    if (!file) {
+      errorResponse(res, "Prescription file is required", 400);
+
       return;
     }
 
-    if (
-      notes !== undefined &&
-      typeof notes !== "string"
-    ) {
-      errorResponse(
-        res,
-        "Prescription notes must be text",
-        400,
-      );
+    if (req.body?.notes !== undefined && typeof req.body.notes !== "string") {
+      errorResponse(res, "Prescription notes must be text", 400);
+
       return;
     }
 
-    const prescription = await createPrescription(
-      userId,
-      {
-        fileUrl,
-        ...(notes !== undefined ? { notes } : {}),
-      },
-    );
+    const notes =
+      typeof req.body?.notes === "string" ? req.body.notes.trim() : undefined;
+
+    const fileUrl = await savePrescriptionFile(file);
+
+    const prescription = await createPrescription(userId, {
+      fileUrl,
+      ...(notes ? { notes } : {}),
+    });
 
     successResponse(
       res,
@@ -384,15 +341,8 @@ export async function submitPrescription(
       201,
     );
   } catch (error) {
-    console.error(
-      "Submit prescription error:",
-      error,
-    );
+    console.error("Submit prescription error:", error);
 
-    errorResponse(
-      res,
-      "Failed to submit prescription",
-      500,
-    );
+    errorResponse(res, "Failed to submit prescription", 500);
   }
 }

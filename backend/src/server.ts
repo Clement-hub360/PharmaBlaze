@@ -5,6 +5,8 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
+import path from "node:path";
+
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
@@ -31,7 +33,13 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
 ];
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin",
+    },
+  }),
+);
 
 app.use(
   cors({
@@ -41,6 +49,7 @@ app.use(
        * an Origin header, such as direct
        * server-to-server requests.
        */
+
       if (!origin) {
         return callback(null, true);
       }
@@ -62,22 +71,36 @@ app.use(
  * JSON body limit.
  *
  * Prescription uploads use multipart/form-data
- * and are therefore handled by Multer rather
- * than express.json().
+ * and are handled by Multer rather than
+ * express.json().
  */
+
 app.use(
   express.json({
     limit: "2mb",
   }),
 );
 
+/*
+ * Serve uploaded prescription files.
+ *
+ * Files are physically stored inside:
+ *
+ * backend/uploads/prescriptions/
+ *
+ * They become available through:
+ *
+ * http://localhost:5000/uploads/prescriptions/<filename>
+ */
+
+const uploadsDirectory = path.join(process.cwd(), "uploads");
+
+app.use("/uploads", express.static(uploadsDirectory));
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-
   limit: 100,
-
   standardHeaders: true,
-
   legacyHeaders: false,
 });
 
@@ -133,27 +156,24 @@ app.use(
   ) => {
     console.error("❌ API Error:", error);
 
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+
     res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message,
     });
   },
 );
 
 app.listen(PORT, () => {
   console.log("");
-
   console.log("🔥 PHARMABLAZE API");
-
   console.log(`🚀 Server: http://localhost:${PORT}`);
-
   console.log(`🌐 Frontend: ${FRONTEND_URL}`);
-
   console.log(`❤️ Health: http://localhost:${PORT}/api/health`);
-
   console.log(`💊 Prescriptions: http://localhost:${PORT}/api/prescriptions`);
-
   console.log(`❤️ Wishlist: http://localhost:${PORT}/api/wishlist`);
-
+  console.log(`📁 Uploads: http://localhost:${PORT}/uploads`);
   console.log("");
 });

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+
 import {
   Search,
   FileText,
@@ -81,14 +82,20 @@ const statusValues: Array<{
 
 function AdminPrescriptions() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+
   const [search, setSearch] = useState("");
+
   const [statusFilter, setStatusFilter] = useState("All");
+
   const [selectedPrescription, setSelectedPrescription] =
     useState<Prescription | null>(null);
 
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
   const [error, setError] = useState("");
 
   const getErrorMessage = (error: unknown) => {
@@ -129,6 +136,7 @@ function AdminPrescriptions() {
       setPrescriptions(response.data.data || []);
     } catch (error) {
       console.error("Load prescriptions error:", error);
+
       setError(getErrorMessage(error));
     } finally {
       setLoading(false);
@@ -164,6 +172,7 @@ function AdminPrescriptions() {
       setSelectedPrescription(updatedPrescription);
     } catch (error) {
       console.error("Update prescription status error:", error);
+
       setError(getErrorMessage(error));
     } finally {
       setUpdatingId(null);
@@ -175,9 +184,13 @@ function AdminPrescriptions() {
 
     return prescriptions.filter((prescription) => {
       const customerName = prescription.user?.name?.toLowerCase() || "";
+
       const customerEmail = prescription.user?.email?.toLowerCase() || "";
+
       const customerPhone = prescription.user?.phone?.toLowerCase() || "";
+
       const prescriptionId = prescription.id.toLowerCase();
+
       const notes = prescription.notes?.toLowerCase() || "";
 
       const matchesSearch =
@@ -303,31 +316,71 @@ function AdminPrescriptions() {
     });
 
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
 
     link.href = url;
+
     link.download = `pharmablaze-prescriptions-${new Date()
       .toISOString()
       .slice(0, 10)}.csv`;
 
     document.body.appendChild(link);
+
     link.click();
+
     document.body.removeChild(link);
 
     URL.revokeObjectURL(url);
   };
 
-  const openPrescriptionFile = (fileUrl: string) => {
+  /*
+   * Convert a backend-relative file URL
+   * into a complete backend URL.
+   *
+   * Example:
+   *
+   * /uploads/prescriptions/file.jpg
+   *
+   * becomes:
+   *
+   * http://localhost:5000/uploads/prescriptions/file.jpg
+   *
+   * This is necessary because the Admin
+   * frontend runs on port 5173 while uploaded
+   * prescription files are served by the
+   * backend on port 5000.
+   */
+  const getPrescriptionFileUrl = (fileUrl: string) => {
     if (!fileUrl) {
+      return "";
+    }
+
+    if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+      return fileUrl;
+    }
+
+    const backendBaseUrl = "http://localhost:5000";
+
+    if (fileUrl.startsWith("/")) {
+      return `${backendBaseUrl}${fileUrl}`;
+    }
+
+    return `${backendBaseUrl}/${fileUrl}`;
+  };
+
+  const openPrescriptionFile = (fileUrl: string) => {
+    const fullFileUrl = getPrescriptionFileUrl(fileUrl);
+
+    if (!fullFileUrl) {
       return;
     }
 
-    window.open(fileUrl, "_blank", "noopener,noreferrer");
+    window.open(fullFileUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -367,7 +420,6 @@ function AdminPrescriptions() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Error */}
         {error && (
           <section className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
             <AlertCircle className="mt-0.5 shrink-0 text-red-600" size={20} />
@@ -390,7 +442,6 @@ function AdminPrescriptions() {
           </section>
         )}
 
-        {/* Summary cards */}
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -467,7 +518,6 @@ function AdminPrescriptions() {
           </div>
         </section>
 
-        {/* Security notice */}
         <section className="mt-6 flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <AlertCircle className="mt-0.5 shrink-0 text-blue-600" size={20} />
 
@@ -485,7 +535,6 @@ function AdminPrescriptions() {
           </div>
         </section>
 
-        {/* Controls */}
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full lg:max-w-xl">
@@ -551,7 +600,6 @@ function AdminPrescriptions() {
           </div>
         </section>
 
-        {/* Desktop table */}
         <section className="mt-6 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
           <div className="border-b border-slate-200 px-5 py-4">
             <div className="flex items-center justify-between">
@@ -684,7 +732,6 @@ function AdminPrescriptions() {
           )}
         </section>
 
-        {/* Mobile cards */}
         <section className="mt-6 space-y-4 lg:hidden">
           {loading ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
@@ -789,7 +836,6 @@ function AdminPrescriptions() {
         </section>
       </main>
 
-      {/* View modal */}
       {selectedPrescription && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
@@ -815,7 +861,6 @@ function AdminPrescriptions() {
             </div>
 
             <div className="space-y-6 p-6">
-              {/* Document */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
@@ -850,7 +895,6 @@ function AdminPrescriptions() {
                 </div>
               </div>
 
-              {/* Details */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -921,7 +965,6 @@ function AdminPrescriptions() {
                 </div>
               </div>
 
-              {/* Notes */}
               <div className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Notes
@@ -933,7 +976,6 @@ function AdminPrescriptions() {
                 </p>
               </div>
 
-              {/* Status controls */}
               <div className="border-t border-slate-200 pt-5">
                 <p className="mb-3 text-sm font-semibold text-slate-900">
                   Update Prescription Status
@@ -971,7 +1013,6 @@ function AdminPrescriptions() {
                 </div>
               </div>
 
-              {/* Download / open */}
               <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row">
                 <button
                   type="button"

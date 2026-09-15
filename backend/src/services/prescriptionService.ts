@@ -7,6 +7,7 @@ export async function getAllPrescriptions() {
     orderBy: {
       createdAt: "desc",
     },
+
     include: {
       user: {
         select: {
@@ -25,6 +26,7 @@ export async function getPrescriptionById(id: string) {
     where: {
       id,
     },
+
     include: {
       user: {
         select: {
@@ -54,6 +56,7 @@ export async function updatePrescriptionStatus(
     where: {
       id,
     },
+
     data: {
       status,
 
@@ -72,6 +75,7 @@ export async function updatePrescriptionStatus(
             reviewedBy: null,
           }),
     },
+
     include: {
       user: {
         select: {
@@ -94,6 +98,7 @@ export async function getPrescriptionsForUser(userId: string) {
     where: {
       userId,
     },
+
     orderBy: {
       createdAt: "desc",
     },

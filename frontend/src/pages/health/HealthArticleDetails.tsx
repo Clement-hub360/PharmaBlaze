@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import {
   ArrowLeft,
   BookOpen,
@@ -8,7 +9,9 @@ import {
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
+
 import { Link, useParams } from "react-router-dom";
+
 import api from "../../services/api";
 
 type BlogPost = {
@@ -24,15 +27,36 @@ type BlogPost = {
   updatedAt: string;
 };
 
+const BACKEND_BASE_URL = "http://localhost:5000";
+
+function getBlogImageUrl(image: string | null | undefined): string {
+  if (!image) {
+    return "";
+  }
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  if (image.startsWith("/")) {
+    return `${BACKEND_BASE_URL}${image}`;
+  }
+
+  return `${BACKEND_BASE_URL}/${image}`;
+}
+
 function getReadTime(content: string) {
   const words = content.trim().split(/\s+/).filter(Boolean).length;
+
   const minutes = Math.max(1, Math.ceil(words / 200));
 
   return `${minutes} min read`;
 }
 
 function formatDate(date: string | null) {
-  if (!date) return "";
+  if (!date) {
+    return "";
+  }
 
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -45,7 +69,9 @@ export default function HealthArticleDetails() {
   const { slug } = useParams();
 
   const [article, setArticle] = useState<BlogPost | null>(null);
+
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -73,6 +99,7 @@ export default function HealthArticleDetails() {
         if (!foundArticle) {
           if (!cancelled) {
             setArticle(null);
+
             setError(
               "The health article you are looking for could not be found.",
             );
@@ -162,6 +189,8 @@ export default function HealthArticleDetails() {
     );
   }
 
+  const articleImageUrl = getBlogImageUrl(article.image);
+
   return (
     <main className="min-h-screen bg-slate-50">
       {/* HERO */}
@@ -214,11 +243,19 @@ export default function HealthArticleDetails() {
         <article className="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           {/* FEATURED IMAGE */}
           {article.image ? (
-            <div className="overflow-hidden">
+            <div className="overflow-hidden bg-slate-100">
               <img
-                src={article.image}
+                src={articleImageUrl}
                 alt={article.title}
-                className="max-h-[480px] w-full object-cover"
+                className="max-h-[560px] w-full object-cover"
+                onError={(event) => {
+                  console.error(
+                    "Failed to load article image:",
+                    articleImageUrl,
+                  );
+
+                  event.currentTarget.style.display = "none";
+                }}
               />
             </div>
           ) : (

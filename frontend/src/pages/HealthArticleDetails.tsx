@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+
 import { Link, useParams } from "react-router-dom";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +12,7 @@ import {
   RefreshCw,
   Share2,
 } from "lucide-react";
+
 import api from "../services/api";
 
 type BlogPost = {
@@ -25,8 +28,25 @@ type BlogPost = {
   updatedAt: string;
 };
 
+const BACKEND_BASE_URL = "http://localhost:5000";
+
+function getBlogImageUrl(image: string | null | undefined): string {
+  if (!image) {
+    return "";
+  }
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  return image.startsWith("/")
+    ? `${BACKEND_BASE_URL}${image}`
+    : `${BACKEND_BASE_URL}/${image}`;
+}
+
 function calculateReadTime(content: string) {
   const words = content.trim().split(/\s+/).filter(Boolean).length;
+
   return `${Math.max(1, Math.ceil(words / 200))} min read`;
 }
 
@@ -84,7 +104,9 @@ function HealthArticleDetails() {
       }
     } catch (err) {
       console.error("Failed to load article:", err);
+
       setPost(null);
+
       setError("We couldn't load this article right now. Please try again.");
     } finally {
       setLoading(false);
@@ -121,6 +143,7 @@ function HealthArticleDetails() {
 
     try {
       await navigator.clipboard.writeText(articleUrl);
+
       window.alert("Article link copied to your clipboard.");
     } catch {
       window.alert("Unable to copy the article link.");
@@ -130,6 +153,7 @@ function HealthArticleDetails() {
   const copyArticleLink = async () => {
     try {
       await navigator.clipboard.writeText(articleUrl);
+
       window.alert("Article link copied to your clipboard.");
     } catch {
       window.alert("Unable to copy the article link.");
@@ -210,10 +234,12 @@ function HealthArticleDetails() {
     );
   }
 
+  const imageUrl = getBlogImageUrl(post.image);
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Article Header */}
       <article>
+        {/* Article Header */}
         <header className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
             <Link
@@ -259,12 +285,15 @@ function HealthArticleDetails() {
 
         {/* Featured Image */}
         <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6 lg:px-8">
-          {post.image ? (
+          {imageUrl ? (
             <div className="overflow-hidden rounded-3xl bg-slate-100 shadow-sm">
               <img
-                src={post.image}
+                src={imageUrl}
                 alt={post.title}
                 className="max-h-[560px] w-full object-cover"
+                onError={() => {
+                  console.error("Failed to load blog image:", imageUrl);
+                }}
               />
             </div>
           ) : (
@@ -289,7 +318,9 @@ function HealthArticleDetails() {
                   {post.content.split(/\n{2,}/).map((paragraph, index) => {
                     const trimmedParagraph = paragraph.trim();
 
-                    if (!trimmedParagraph) return null;
+                    if (!trimmedParagraph) {
+                      return null;
+                    }
 
                     if (trimmedParagraph.startsWith("## ")) {
                       return (
@@ -351,25 +382,25 @@ function HealthArticleDetails() {
                 </div>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                 <button
-  type="button"
-  onClick={shareOnFacebook}
-  className="flex items-center justify-center rounded-xl border border-slate-200 p-3 text-slate-600 transition hover:bg-slate-50"
-  title="Share on Facebook"
-  aria-label="Share on Facebook"
->
-  <Share2 size={18} />
-</button>
+                  <button
+                    type="button"
+                    onClick={shareOnFacebook}
+                    className="flex items-center justify-center rounded-xl border border-slate-200 p-3 text-slate-600 transition hover:bg-slate-50"
+                    title="Share on Facebook"
+                    aria-label="Share on Facebook"
+                  >
+                    <Share2 size={18} />
+                  </button>
 
                   <button
-  type="button"
-  onClick={shareOnTwitter}
-  className="flex items-center justify-center rounded-xl border border-slate-200 p-3 text-slate-600 transition hover:bg-slate-50"
-  title="Share on X"
-  aria-label="Share on X"
->
-  <Share2 size={18} />
-</button>
+                    type="button"
+                    onClick={shareOnTwitter}
+                    className="flex items-center justify-center rounded-xl border border-slate-200 p-3 text-slate-600 transition hover:bg-slate-50"
+                    title="Share on X"
+                    aria-label="Share on X"
+                  >
+                    <Share2 size={18} />
+                  </button>
 
                   <button
                     type="button"
@@ -421,55 +452,65 @@ function HealthArticleDetails() {
             </div>
 
             <div className="mt-7 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {relatedPosts.map((article) => (
-                <article
-                  key={article.id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-                >
-                  {article.image ? (
-                    <img
-                      src={article.image}
-                      alt={article.title}
-                      className="aspect-[16/9] w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex aspect-[16/9] items-center justify-center bg-emerald-50">
-                      <BookOpen size={40} className="text-emerald-300" />
+              {relatedPosts.map((article) => {
+                const relatedImageUrl = getBlogImageUrl(article.image);
+
+                return (
+                  <article
+                    key={article.id}
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                  >
+                    {relatedImageUrl ? (
+                      <img
+                        src={relatedImageUrl}
+                        alt={article.title}
+                        className="aspect-[16/9] w-full object-cover"
+                        onError={() => {
+                          console.error(
+                            "Failed to load related blog image:",
+                            relatedImageUrl,
+                          );
+                        }}
+                      />
+                    ) : (
+                      <div className="flex aspect-[16/9] items-center justify-center bg-emerald-50">
+                        <BookOpen size={40} className="text-emerald-300" />
+                      </div>
+                    )}
+
+                    <div className="p-5">
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays size={13} />
+                          {formatDate(article.publishedAt)}
+                        </span>
+
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock3 size={13} />
+                          {calculateReadTime(article.content)}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-3 font-bold leading-6 text-slate-900">
+                        {article.title}
+                      </h3>
+
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                        {article.excerpt ||
+                          article.content.substring(0, 140) + "..."}
+                      </p>
+
+                      <Link
+                        to={`/health/articles/${article.slug}`}
+                        className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700"
+                      >
+                        Read Article
+                        <ArrowRight size={15} />
+                      </Link>
                     </div>
-                  )}
-
-                  <div className="p-5">
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span className="inline-flex items-center gap-1.5">
-                        <CalendarDays size={13} />
-                        {formatDate(article.publishedAt)}
-                      </span>
-
-                      <span className="inline-flex items-center gap-1.5">
-                        <Clock3 size={13} />
-                        {calculateReadTime(article.content)}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-3 font-bold leading-6 text-slate-900">
-                      {article.title}
-                    </h3>
-
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
-                      {article.excerpt ||
-                        article.content.substring(0, 140) + "..."}
-                    </p>
-
-                    <Link
-                      to={`/health/articles/${article.slug}`}
-                      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700"
-                    >
-                      Read Article
-                      <ArrowRight size={15} />
-                    </Link>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>

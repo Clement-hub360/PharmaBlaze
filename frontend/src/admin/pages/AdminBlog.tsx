@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
+
 import {
-  Search,
-  Plus,
-  FileText,
-  Eye,
-  Edit3,
-  Trash2,
-  X,
+  AlertCircle,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   Clock3,
-  FilePenLine,
-  BookOpen,
-  Image as ImageIcon,
-  RefreshCw,
+  Edit3,
   ExternalLink,
+  Eye,
+  FilePenLine,
+  FileText,
   Globe2,
+  Image as ImageIcon,
+  Plus,
+  RefreshCw,
   Save,
-  AlertCircle,
+  Search,
+  Trash2,
+  X,
 } from "lucide-react";
+
 import api from "../../services/api";
 
 type ArticleStatus = "Published" | "Draft";
@@ -36,186 +38,349 @@ type BlogPost = {
   updatedAt: string;
 };
 
-function AdminBlog() {
+const BACKEND_BASE_URL = "http://localhost:5000";
+
+function getBlogImageUrl(image: string | null | undefined): string {
+  if (!image) {
+    return "";
+  }
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  return image.startsWith("/")
+    ? `${BACKEND_BASE_URL}${image}`
+    : `${BACKEND_BASE_URL}/${image}`;
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (
+      error as {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      }
+    ).response;
+
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function formatDate(value: string | null): string {
+  if (!value) {
+    return "—";
+  }
+
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getReadTime(content: string): number {
+  const words = content.trim().split(/\s+/).filter(Boolean).length;
+
+  return Math.max(1, Math.ceil(words / 200));
+}
+
+function getStatusClasses(published: boolean): string {
+  return published
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+export default function Blog() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
+
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+
+  const [statusFilter, setStatusFilter] = useState<"All" | ArticleStatus>(
+    "All",
+  );
 
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+
   const [showEditor, setShowEditor] = useState(false);
+
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
 
   const [newTitle, setNewTitle] = useState("");
+
   const [newExcerpt, setNewExcerpt] = useState("");
+
   const [newContent, setNewContent] = useState("");
+
   const [newImage, setNewImage] = useState("");
+
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+
+  const [newImagePreview, setNewImagePreview] = useState("");
+
   const [newStatus, setNewStatus] = useState<ArticleStatus>("Draft");
 
   const [loading, setLoading] = useState(true);
+
   const [saving, setSaving] = useState(false);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const [error, setError] = useState("");
+
   const [success, setSuccess] = useState("");
 
-  const slugify = (value: string) => {
-    return value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-");
-  };
+  /*
+   * Create a temporary browser preview whenever
+   * the administrator selects a new image file.
+   *
+   * The object URL is revoked when the file changes
+   * or the component is unmounted.
+   */
+  useEffect(() => {
+    if (!newImageFile) {
+      setNewImagePreview("");
+      return;
+    }
 
-  const getErrorMessage = (err: unknown, fallback: string) => {
-    const axiosError = err as {
-      response?: {
-        data?: {
-          message?: string;
-        };
-      };
+    const objectUrl = URL.createObjectURL(newImageFile);
+
+    setNewImagePreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
     };
+  }, [newImageFile]);
 
-    return axiosError.response?.data?.message || fallback;
-  };
+  async function fetchPosts() {
+    setLoading(true);
+    setError("");
 
-  const fetchPosts = async () => {
     try {
-      setLoading(true);
-      setError("");
-
       const response = await api.get("/blog");
 
-      setPosts((response.data.data || []) as BlogPost[]);
-    } catch (err) {
-      console.error("Get blog posts error:", err);
-      setError(
-        getErrorMessage(err, "Unable to load blog articles. Please try again."),
-      );
+      setPosts(response.data.data as BlogPost[]);
+    } catch (requestError) {
+      console.error("Unable to load blog posts:", requestError);
+
+      setError(getErrorMessage(requestError, "Unable to load blog posts."));
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
     void fetchPosts();
   }, []);
 
   const filteredPosts = useMemo(() => {
-    const searchValue = search.toLowerCase().trim();
+    const normalizedSearch = search.trim().toLowerCase();
 
     return posts.filter((post) => {
       const matchesSearch =
-        !searchValue ||
-        post.title.toLowerCase().includes(searchValue) ||
-        post.slug.toLowerCase().includes(searchValue) ||
-        (post.excerpt || "").toLowerCase().includes(searchValue) ||
-        post.content.toLowerCase().includes(searchValue);
+        normalizedSearch === "" ||
+        post.title.toLowerCase().includes(normalizedSearch) ||
+        post.slug.toLowerCase().includes(normalizedSearch) ||
+        (post.excerpt ?? "").toLowerCase().includes(normalizedSearch);
 
-      const status: ArticleStatus = post.published ? "Published" : "Draft";
-
-      const matchesStatus = statusFilter === "All" || status === statusFilter;
+      const matchesStatus =
+        statusFilter === "All" ||
+        (statusFilter === "Published" ? post.published : !post.published);
 
       return matchesSearch && matchesStatus;
     });
   }, [posts, search, statusFilter]);
 
   const publishedCount = posts.filter((post) => post.published).length;
+
   const draftCount = posts.filter((post) => !post.published).length;
 
   const totalWords = posts.reduce((total, post) => {
     return total + post.content.trim().split(/\s+/).filter(Boolean).length;
   }, 0);
 
-  const getReadTime = (content: string) => {
-    const words = content.trim().split(/\s+/).filter(Boolean).length;
-    const minutes = Math.max(1, Math.ceil(words / 200));
-    return `${minutes} min read`;
-  };
-
-  const formatDate = (date: string | null) => {
-    if (!date) return "Not published";
-
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-    }).format(new Date(date));
-  };
-
-  const getStatusClasses = (status: ArticleStatus) => {
-    if (status === "Published") {
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    }
-
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  };
-
-  const resetEditor = () => {
+  function resetEditor() {
+    setEditingPost(null);
     setNewTitle("");
     setNewExcerpt("");
     setNewContent("");
     setNewImage("");
+    setNewImageFile(null);
+    setNewImagePreview("");
     setNewStatus("Draft");
-    setEditingPost(null);
-    setError("");
-  };
+  }
 
-  const openCreateEditor = () => {
+  function openCreateEditor() {
+    setError("");
+    setSuccess("");
     resetEditor();
     setShowEditor(true);
-  };
+  }
 
-  const openEditEditor = (post: BlogPost) => {
+  function openEditEditor(post: BlogPost) {
+    setError("");
+    setSuccess("");
+
     setEditingPost(post);
     setNewTitle(post.title);
-    setNewExcerpt(post.excerpt || "");
+    setNewExcerpt(post.excerpt ?? "");
     setNewContent(post.content);
-    setNewImage(post.image || "");
+    setNewImage(post.image ?? "");
+    setNewImageFile(null);
+    setNewImagePreview("");
     setNewStatus(post.published ? "Published" : "Draft");
-    setError("");
+
     setShowEditor(true);
-  };
+  }
 
-  const closeEditor = () => {
-    if (saving) return;
+  function handleImageFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
 
-    setShowEditor(false);
-    resetEditor();
-  };
+    setError("");
+    setSuccess("");
 
-  const handleSavePost = async () => {
-    if (!newTitle.trim()) {
+    if (!file) {
+      setNewImageFile(null);
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+    const maxSize = 5 * 1024 * 1024;
+
+    if (!allowedTypes.includes(file.type)) {
+      event.target.value = "";
+      setNewImageFile(null);
+
+      setError("Invalid image type. Please select a JPG, PNG, or WEBP image.");
+
+      return;
+    }
+
+    if (file.size > maxSize) {
+      event.target.value = "";
+      setNewImageFile(null);
+
+      setError("Image is too large. Please select an image smaller than 5 MB.");
+
+      return;
+    }
+
+    /*
+     * Selecting a file takes priority over
+     * an existing image URL.
+     */
+    setNewImageFile(file);
+    setNewImage("");
+  }
+
+  function handleImageUrlChange(value: string) {
+    setNewImage(value);
+
+    /*
+     * If the administrator starts entering an
+     * image URL, cancel the selected local file.
+     */
+    if (newImageFile) {
+      setNewImageFile(null);
+
+      const fileInput = document.getElementById(
+        "article-image-file",
+      ) as HTMLInputElement | null;
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+    }
+  }
+
+  async function handleSavePost() {
+    setError("");
+    setSuccess("");
+
+    const title = newTitle.trim();
+
+    const content = newContent.trim();
+
+    if (!title) {
       setError("Article title is required.");
+
       return;
     }
 
-    if (!newContent.trim()) {
-      setError("Full article content is required.");
+    if (!content) {
+      setError("Article content is required.");
+
       return;
     }
+
+    setSaving(true);
 
     try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
+      let imageUrl = newImage.trim() || undefined;
 
-      const title = newTitle.trim();
-      const slug = slugify(title);
+      /*
+       * If a new local image was selected,
+       * upload it first.
+       */
+      if (newImageFile) {
+        const formData = new FormData();
+
+        formData.append("image", newImageFile);
+
+        const uploadResponse = await api.post("/blog/upload-image", formData);
+
+        const uploadedImage = uploadResponse.data?.data?.url;
+
+        if (typeof uploadedImage !== "string" || uploadedImage.trim() === "") {
+          throw new Error(
+            "Image upload completed but no image URL was returned.",
+          );
+        }
+
+        imageUrl = uploadedImage;
+      }
+
+      const slug =
+        editingPost?.slug && newTitle.trim() === editingPost.title.trim()
+          ? editingPost.slug
+          : slugify(title);
 
       const payload = {
         title,
         slug,
         excerpt: newExcerpt.trim() || undefined,
-        content: newContent.trim(),
-        image: newImage.trim() || undefined,
+        content,
+        image: imageUrl,
         published: newStatus === "Published",
       };
 
       if (editingPost) {
         await api.patch(`/blog/${editingPost.id}`, payload);
+
         setSuccess("Article updated successfully.");
       } else {
         await api.post("/blog", payload);
+
         setSuccess("Article created successfully.");
       }
 
@@ -223,693 +388,623 @@ function AdminBlog() {
       resetEditor();
 
       await fetchPosts();
-    } catch (err) {
-      console.error("Save blog post error:", err);
+    } catch (requestError) {
+      console.error("Unable to save blog post:", requestError);
 
       setError(
         getErrorMessage(
-          err,
-          editingPost
-            ? "Unable to update the article."
-            : "Unable to create the article.",
+          requestError,
+          newImageFile
+            ? "Unable to upload the image or save the article."
+            : "Unable to save the article.",
         ),
       );
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const handleDelete = async (id: string) => {
-    const post = posts.find((item) => item.id === id);
-
-    if (!post) return;
-
+  async function handleDeletePost(post: BlogPost) {
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete "${post.title}"?`,
+      `Delete "${post.title}"? This action cannot be undone.`,
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(post.id);
+    setError("");
+    setSuccess("");
 
     try {
-      setDeletingId(id);
-      setError("");
-      setSuccess("");
+      await api.delete(`/blog/${post.id}`);
 
-      await api.delete(`/blog/${id}`);
-
-      setPosts((currentPosts) => currentPosts.filter((item) => item.id !== id));
-
-      if (selectedPost?.id === id) {
+      if (selectedPost?.id === post.id) {
         setSelectedPost(null);
       }
 
       setSuccess("Article deleted successfully.");
-    } catch (err) {
-      console.error("Delete blog post error:", err);
 
-      setError(
-        getErrorMessage(err, "Unable to delete the article. Please try again."),
-      );
+      await fetchPosts();
+    } catch (requestError) {
+      console.error("Unable to delete blog post:", requestError);
+
+      setError(getErrorMessage(requestError, "Unable to delete the article."));
     } finally {
       setDeletingId(null);
     }
-  };
+  }
 
-  const handleExport = () => {
-    if (filteredPosts.length === 0) {
-      setError("There are no articles to export.");
-      return;
-    }
+  function exportCsv() {
+    const header = ["Title", "Slug", "Status", "Published At", "Created At"];
 
-    const headers = [
-      "ID",
-      "Title",
-      "Slug",
-      "Excerpt",
-      "Published",
-      "Published At",
-      "Created At",
-      "Updated At",
-    ];
-
-    const escapeCsv = (value: string) => {
-      return `"${value.replace(/"/g, '""')}"`;
-    };
-
-    const rows = filteredPosts.map((post) => [
-      post.id,
+    const rows = posts.map((post) => [
       post.title,
       post.slug,
-      post.excerpt || "",
       post.published ? "Published" : "Draft",
-      post.publishedAt || "",
+      post.publishedAt ?? "",
       post.createdAt,
-      post.updatedAt,
     ]);
 
-    const csv = [
-      headers.map(escapeCsv).join(","),
-      ...rows.map((row) => row.map(escapeCsv).join(",")),
-    ].join("\n");
+    const csv = [header, ...rows]
+      .map((row) =>
+        row
+          .map((value) => {
+            const safeValue = String(value).replace(/"/g, '""');
+
+            return `"${safeValue}"`;
+          })
+          .join(","),
+      )
+      .join("\n");
 
     const blob = new Blob([csv], {
       type: "text/csv;charset=utf-8;",
     });
 
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = "pharmablaze-blog-articles.csv";
+    link.download = "pharmablaze-blog-posts.csv";
+
+    document.body.appendChild(link);
+
     link.click();
 
-    URL.revokeObjectURL(url);
-  };
+    document.body.removeChild(link);
 
-  const openArticle = (post: BlogPost) => {
-    if (post.published) {
-      window.open(`/health/articles/${post.slug}`, "_blank");
-    } else {
-      setSelectedPost(post);
-    }
-  };
+    URL.revokeObjectURL(url);
+  }
+
+  function openArticle(post: BlogPost) {
+    window.open(
+      `/health/articles/${post.slug}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  const editorImage = newImagePreview || getBlogImageUrl(newImage);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-                <span>Admin</span>
-                <span>/</span>
-                <span>Blog & Health Articles</span>
-              </div>
-
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                Blog & Health Articles
-              </h1>
-
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                Create, organize, publish, and manage educational content stored
-                in your Pharmablaze database.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleExport}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-              >
-                <FileText size={18} />
-                Export CSV
-              </button>
-
-              <button
-                type="button"
-                onClick={openCreateEditor}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                <Plus size={18} />
-                New Article
-              </button>
-            </div>
+    <div className="space-y-6">
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-600">
+            <BookOpen size={16} />
+            <span>Content Management</span>
           </div>
+
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            Blog & Articles
+          </h1>
+
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 sm:text-base">
+            Create, publish, edit, and manage health articles for your
+            customers.
+          </p>
         </div>
-      </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Feedback */}
-        {error && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-            <AlertCircle className="mt-0.5 shrink-0 text-red-600" size={20} />
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setSuccess("");
+              void fetchPosts();
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <RefreshCw size={17} />
+            Refresh
+          </button>
 
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-red-900">
-                Something went wrong
-              </p>
-              <p className="mt-1 text-sm leading-6 text-red-700">{error}</p>
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <FileText size={17} />
+            Export CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={openCreateEditor}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            <Plus size={18} />
+            New Article
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================
+          ALERTS
+      ====================================================== */}
+      {error && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={19} className="mt-0.5 shrink-0" />
+
+          <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="ml-auto shrink-0 rounded-lg p-1 transition hover:bg-red-100"
+            aria-label="Dismiss error"
+          >
+            <X size={17} />
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <CheckCircle2 size={19} className="mt-0.5 shrink-0" />
+
+          <span>{success}</span>
+
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            className="ml-auto shrink-0 rounded-lg p-1 transition hover:bg-emerald-100"
+            aria-label="Dismiss success message"
+          >
+            <X size={17} />
+          </button>
+        </div>
+      )}
+
+      {/* ======================================================
+          STAT CARDS
+      ====================================================== */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="rounded-xl bg-slate-100 p-3 text-slate-700">
+              <FileText size={21} />
             </div>
 
-            <button
-              type="button"
-              onClick={() => setError("")}
-              className="rounded-lg p-1 text-red-500 hover:bg-red-100"
-              aria-label="Close error"
-            >
-              <X size={18} />
-            </button>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Total
+            </span>
           </div>
-        )}
 
-        {success && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <CheckCircle2
-              className="mt-0.5 shrink-0 text-emerald-600"
-              size={20}
+          <p className="mt-5 text-3xl font-bold text-slate-900">
+            {posts.length}
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">Articles</p>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700">
+              <Globe2 size={21} />
+            </div>
+
+            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+              Live
+            </span>
+          </div>
+
+          <p className="mt-5 text-3xl font-bold text-slate-900">
+            {publishedCount}
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">Published</p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="rounded-xl bg-amber-100 p-3 text-amber-700">
+              <FilePenLine size={21} />
+            </div>
+
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+              Work
+            </span>
+          </div>
+
+          <p className="mt-5 text-3xl font-bold text-slate-900">{draftCount}</p>
+
+          <p className="mt-1 text-sm text-slate-500">Drafts</p>
+        </div>
+
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="rounded-xl bg-blue-100 p-3 text-blue-700">
+              <BookOpen size={21} />
+            </div>
+
+            <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+              Content
+            </span>
+          </div>
+
+          <p className="mt-5 text-3xl font-bold text-slate-900">
+            {totalWords.toLocaleString()}
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">Total words</p>
+        </div>
+      </div>
+
+      {/* ======================================================
+          SEARCH / FILTER
+      ====================================================== */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
 
-            <p className="text-sm font-medium leading-6 text-emerald-800">
-              {success}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => setSuccess("")}
-              className="ml-auto rounded-lg p-1 text-emerald-600 hover:bg-emerald-100"
-              aria-label="Close success message"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        )}
-
-        {/* Summary */}
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-xl bg-emerald-50 p-3">
-                <BookOpen className="text-emerald-600" size={22} />
-              </div>
-
-              <span className="text-xs font-medium text-slate-400">
-                Database
-              </span>
-            </div>
-
-            <p className="mt-5 text-3xl font-bold text-slate-900">
-              {posts.length}
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">Total articles</p>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search articles by title, slug, or excerpt..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+            />
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-xl bg-blue-50 p-3">
-                <Globe2 className="text-blue-600" size={22} />
-              </div>
-
-              <span className="text-xs font-medium text-slate-400">Live</span>
-            </div>
-
-            <p className="mt-5 text-3xl font-bold text-slate-900">
-              {publishedCount}
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">Published articles</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-xl bg-amber-50 p-3">
-                <FilePenLine className="text-amber-600" size={22} />
-              </div>
-
-              <span className="text-xs font-medium text-slate-400">
-                Work in progress
-              </span>
-            </div>
-
-            <p className="mt-5 text-3xl font-bold text-slate-900">
-              {draftCount}
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">Draft articles</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-xl bg-purple-50 p-3">
-                <FileText className="text-purple-600" size={22} />
-              </div>
-
-              <span className="text-xs font-medium text-slate-400">
-                Content
-              </span>
-            </div>
-
-            <p className="mt-5 text-3xl font-bold text-slate-900">
-              {totalWords.toLocaleString()}
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">Total words</p>
-          </div>
-        </section>
-
-        {/* Health content notice */}
-        <section className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-5">
-          <div className="flex gap-3">
-            <FileText className="mt-0.5 shrink-0 text-blue-600" size={21} />
-
-            <div>
-              <h2 className="text-sm font-semibold text-blue-900">
-                Health content notice
-              </h2>
-
-              <p className="mt-1 text-sm leading-6 text-blue-800">
-                Articles should be educational and reviewed appropriately before
-                publication. Avoid presenting general information as personal
-                medical advice, diagnosis, or treatment.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Filters */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative w-full xl:max-w-xl">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={19}
-              />
-
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search articles, slugs or content..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-              >
-                <option value="All">All Statuses</option>
-                <option value="Published">Published</option>
-                <option value="Draft">Draft</option>
-              </select>
-
+          <div className="flex gap-2 overflow-x-auto">
+            {(["All", "Published", "Draft"] as const).map((filter) => (
               <button
+                key={filter}
                 type="button"
-                onClick={() => void fetchPosts()}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setStatusFilter(filter)}
+                className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                  statusFilter === filter
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
               >
-                <RefreshCw
-                  size={17}
-                  className={loading ? "animate-spin" : ""}
-                />
-                Refresh
+                {filter}
               </button>
-            </div>
+            ))}
           </div>
-        </section>
+        </div>
+      </div>
 
-        {/* Desktop table */}
-        <section className="mt-6 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-semibold text-slate-900">Articles</h2>
+      {/* ======================================================
+          DESKTOP TABLE
+      ====================================================== */}
+      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead className="border-b border-slate-200 bg-slate-50">
+              <tr>
+                <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Article
+                </th>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {filteredPosts.length} article
-                  {filteredPosts.length === 1 ? "" : "s"} displayed
-                </p>
-              </div>
+                <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Status
+                </th>
 
-              <FileText className="text-slate-300" size={24} />
-            </div>
-          </div>
+                <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Date
+                </th>
 
-          {loading ? (
-            <div className="px-6 py-20 text-center">
-              <RefreshCw
-                className="mx-auto animate-spin text-emerald-600"
-                size={32}
-              />
+                <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Read time
+                </th>
 
-              <p className="mt-4 text-sm font-medium text-slate-600">
-                Loading articles from PostgreSQL...
-              </p>
-            </div>
-          ) : filteredPosts.length === 0 ? (
-            <div className="px-6 py-20 text-center">
-              <BookOpen className="mx-auto text-slate-300" size={44} />
+                <th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Actions
+                </th>
+              </tr>
+            </thead>
 
-              <h3 className="mt-4 font-semibold text-slate-900">
-                No articles found
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {posts.length === 0
-                  ? "Your blog database is currently empty. Create your first article."
-                  : "Try changing your search or status filter."}
-              </p>
-
-              {posts.length === 0 && (
-                <button
-                  type="button"
-                  onClick={openCreateEditor}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
-                >
-                  <Plus size={17} />
-                  Create First Article
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
-                <thead className="bg-slate-50">
-                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <th className="px-5 py-4">Article</th>
-                    <th className="px-5 py-4">Slug</th>
-                    <th className="px-5 py-4">Published / Updated</th>
-                    <th className="px-5 py-4">Read Time</th>
-                    <th className="px-5 py-4">Status</th>
-                    <th className="px-5 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100">
-                  {filteredPosts.map((post) => {
-                    const status: ArticleStatus = post.published
-                      ? "Published"
-                      : "Draft";
-
-                    return (
-                      <tr
-                        key={post.id}
-                        className="transition hover:bg-slate-50"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-14 w-14 shrink-0 overflow-hidden items-center justify-center rounded-xl bg-slate-100">
-                              {post.image ? (
-                                <img
-                                  src={post.image}
-                                  alt={post.title}
-                                  className="h-full w-full object-cover"
-                                  onError={(event) => {
-                                    event.currentTarget.style.display = "none";
-                                  }}
-                                />
-                              ) : (
-                                <ImageIcon
-                                  className="text-slate-400"
-                                  size={21}
-                                />
-                              )}
-                            </div>
-
-                            <div className="max-w-md">
-                              <p className="font-semibold text-slate-900">
-                                {post.title}
-                              </p>
-
-                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                                {post.excerpt || "No excerpt provided."}
-                              </p>
-
-                              <p className="mt-1 text-[11px] font-medium text-slate-400">
-                                ID: {post.id}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span className="inline-flex max-w-xs rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-                            /{post.slug}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <CalendarDays
-                              size={16}
-                              className="text-slate-400"
-                            />
-
-                            {formatDate(post.publishedAt || post.updatedAt)}
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {getReadTime(post.content)}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${getStatusClasses(
-                              status,
-                            )}`}
-                          >
-                            {status === "Published" ? (
-                              <CheckCircle2 size={14} />
-                            ) : (
-                              <Clock3 size={14} />
-                            )}
-
-                            {status}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openArticle(post)}
-                              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                              title={
-                                post.published
-                                  ? "Open published article"
-                                  : "Preview article"
-                              }
-                            >
-                              {post.published ? (
-                                <ExternalLink size={16} />
-                              ) : (
-                                <Eye size={16} />
-                              )}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => openEditEditor(post)}
-                              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
-                              title="Edit article"
-                            >
-                              <Edit3 size={16} />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => void handleDelete(post.id)}
-                              disabled={deletingId === post.id}
-                              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              title="Delete article"
-                            >
-                              {deletingId === post.id ? (
-                                <RefreshCw size={16} className="animate-spin" />
-                              ) : (
-                                <Trash2 size={16} />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Mobile article cards */}
-        <section className="mt-6 space-y-4 lg:hidden">
-          {loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center">
-              <RefreshCw
-                className="mx-auto animate-spin text-emerald-600"
-                size={32}
-              />
-
-              <p className="mt-4 text-sm font-medium text-slate-600">
-                Loading articles...
-              </p>
-            </div>
-          ) : filteredPosts.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
-              <BookOpen className="mx-auto text-slate-300" size={44} />
-
-              <h3 className="mt-4 font-semibold text-slate-900">
-                No articles found
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {posts.length === 0
-                  ? "Create your first article to get started."
-                  : "Try changing your search or filter."}
-              </p>
-            </div>
-          ) : (
-            filteredPosts.map((post) => {
-              const status: ArticleStatus = post.published
-                ? "Published"
-                : "Draft";
-
-              return (
-                <article
-                  key={post.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex gap-4">
-                    <div className="flex h-14 w-14 shrink-0 overflow-hidden items-center justify-center rounded-xl bg-slate-100">
-                      {post.image ? (
-                        <img
-                          src={post.image}
-                          alt={post.title}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <ImageIcon className="text-slate-400" size={23} />
-                      )}
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-16 text-center">
+                    <div className="inline-flex items-center gap-3 text-sm font-medium text-slate-500">
+                      <RefreshCw size={18} className="animate-spin" />
+                      Loading articles...
                     </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold text-slate-900">
-                          {post.title}
-                        </h3>
-
-                        <span
-                          className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${getStatusClasses(
-                            status,
-                          )}`}
-                        >
-                          {status}
-                        </span>
+                  </td>
+                </tr>
+              ) : filteredPosts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-16 text-center">
+                    <div className="mx-auto max-w-md">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                        <BookOpen size={25} />
                       </div>
 
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
-                        {post.excerpt ||
-                          "No excerpt provided for this article."}
+                      <h3 className="mt-4 text-base font-bold text-slate-900">
+                        No articles found
+                      </h3>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        Try changing your search or create a new article.
                       </p>
                     </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredPosts.map((post) => {
+                  const imageUrl = getBlogImageUrl(post.image);
+
+                  return (
+                    <tr
+                      key={post.id}
+                      className="transition hover:bg-slate-50/70"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex min-w-0 items-center gap-4">
+                          <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                            {imageUrl ? (
+                              <img
+                                src={imageUrl}
+                                alt={post.title}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                <ImageIcon size={22} />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPost(post)}
+                              className="block max-w-[430px] truncate text-left text-sm font-bold text-slate-900 hover:text-emerald-600"
+                            >
+                              {post.title}
+                            </button>
+
+                            <p className="mt-1 max-w-[430px] truncate text-xs text-slate-500">
+                              /{post.slug}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getStatusClasses(
+                            post.published,
+                          )}`}
+                        >
+                          {post.published ? (
+                            <CheckCircle2 size={14} />
+                          ) : (
+                            <Clock3 size={14} />
+                          )}
+
+                          {post.published ? "Published" : "Draft"}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <CalendarDays size={16} className="text-slate-400" />
+
+                          {formatDate(post.publishedAt ?? post.createdAt)}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Clock3 size={16} className="text-slate-400" />
+                          {getReadTime(post.content)} min
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPost(post)}
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                            title="View article"
+                          >
+                            <Eye size={17} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openEditEditor(post)}
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700"
+                            title="Edit article"
+                          >
+                            <Edit3 size={17} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleDeletePost(post)}
+                            disabled={deletingId === post.id}
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Delete article"
+                          >
+                            {deletingId === post.id ? (
+                              <RefreshCw size={17} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={17} />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ======================================================
+          MOBILE CARDS
+      ====================================================== */}
+      <div className="space-y-3 lg:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-16 text-center shadow-sm">
+            <div className="inline-flex items-center gap-3 text-sm font-medium text-slate-500">
+              <RefreshCw size={18} className="animate-spin" />
+              Loading articles...
+            </div>
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-16 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <BookOpen size={25} />
+            </div>
+
+            <h3 className="mt-4 text-base font-bold text-slate-900">
+              No articles found
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Try changing your search or create a new article.
+            </p>
+          </div>
+        ) : (
+          filteredPosts.map((post) => {
+            const imageUrl = getBlogImageUrl(post.image);
+
+            return (
+              <div
+                key={post.id}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex gap-4">
+                  <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={post.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-slate-400">
+                        <ImageIcon size={22} />
+                      </div>
+                    )}
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CalendarDays size={14} />
-                      {formatDate(post.publishedAt || post.updatedAt)}
-                    </span>
-
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock3 size={14} />
-                      {getReadTime(post.content)}
-                    </span>
-                  </div>
-
-                  <p className="mt-3 truncate rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                    /{post.slug}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="min-w-0 flex-1">
                     <button
                       type="button"
-                      onClick={() => openArticle(post)}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                      onClick={() => setSelectedPost(post)}
+                      className="line-clamp-2 text-left text-sm font-bold text-slate-900 hover:text-emerald-600"
                     >
-                      {post.published ? (
-                        <ExternalLink size={14} />
-                      ) : (
-                        <Eye size={14} />
-                      )}
-                      View
+                      {post.title}
+                    </button>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${getStatusClasses(
+                          post.published,
+                        )}`}
+                      >
+                        {post.published ? (
+                          <CheckCircle2 size={12} />
+                        ) : (
+                          <Clock3 size={12} />
+                        )}
+
+                        {post.published ? "Published" : "Draft"}
+                      </span>
+
+                      <span className="text-xs text-slate-400">
+                        {getReadTime(post.content)} min read
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <span className="text-xs text-slate-500">
+                    {formatDate(post.publishedAt ?? post.createdAt)}
+                  </span>
+
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPost(post)}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                    >
+                      <Eye size={16} />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => openEditEditor(post)}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
                     >
-                      <Edit3 size={14} />
-                      Edit
+                      <Edit3 size={16} />
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => void handleDelete(post.id)}
+                      onClick={() => void handleDeletePost(post)}
                       disabled={deletingId === post.id}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
+                      className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                     >
                       {deletingId === post.id ? (
-                        <RefreshCw size={14} className="animate-spin" />
+                        <RefreshCw size={16} className="animate-spin" />
                       ) : (
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                       )}
-                      Delete
                     </button>
                   </div>
-                </article>
-              );
-            })
-          )}
-        </section>
-      </main>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
 
-      {/* View Article Modal */}
+      {/* ======================================================
+          ARTICLE PREVIEW MODAL
+      ====================================================== */}
       {selectedPost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-                  Article Preview
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
+                  Article preview
                 </p>
 
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                <h2 className="mt-1 truncate text-lg font-bold text-slate-900">
                   {selectedPost.title}
                 </h2>
               </div>
@@ -918,357 +1013,356 @@ function AdminBlog() {
                 type="button"
                 onClick={() => setSelectedPost(null)}
                 className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                aria-label="Close"
               >
-                <X size={20} />
+                <X size={21} />
               </button>
             </div>
 
-            <div className="space-y-6 p-6">
-              {selectedPost.image ? (
-                <img
-                  src={selectedPost.image}
-                  alt={selectedPost.title}
-                  className="max-h-80 w-full rounded-2xl object-cover"
-                />
-              ) : (
-                <div className="flex min-h-64 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto text-slate-300" size={52} />
-
-                    <p className="mt-3 font-semibold text-slate-700">
-                      No Featured Image
-                    </p>
-                  </div>
+            <div className="overflow-y-auto">
+              {selectedPost.image && (
+                <div className="aspect-[16/7] w-full bg-slate-100">
+                  <img
+                    src={getBlogImageUrl(selectedPost.image)}
+                    alt={selectedPost.title}
+                    className="h-full w-full object-cover"
+                  />
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${getStatusClasses(
-                    selectedPost.published ? "Published" : "Draft",
-                  )}`}
-                >
-                  {selectedPost.published ? "Published" : "Draft"}
-                </span>
+              <div className="p-6 sm:p-8">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <span
+                    className={`rounded-full border px-3 py-1 font-bold ${getStatusClasses(
+                      selectedPost.published,
+                    )}`}
+                  >
+                    {selectedPost.published ? "Published" : "Draft"}
+                  </span>
 
-                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                  {getReadTime(selectedPost.content)}
-                </span>
-              </div>
+                  <span>
+                    {formatDate(
+                      selectedPost.publishedAt ?? selectedPost.createdAt,
+                    )}
+                  </span>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-400">Created</p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {formatDate(selectedPost.createdAt)}
-                  </p>
+                  <span>{getReadTime(selectedPost.content)} min read</span>
                 </div>
 
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-400">Published</p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {formatDate(selectedPost.publishedAt)}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-400">Updated</p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {formatDate(selectedPost.updatedAt)}
-                  </p>
-                </div>
-              </div>
-
-              {selectedPost.excerpt && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Excerpt
-                  </p>
-
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                {selectedPost.excerpt && (
+                  <p className="mt-5 text-base font-medium leading-7 text-slate-600">
                     {selectedPost.excerpt}
                   </p>
-                </div>
-              )}
+                )}
 
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Article Content
-                </p>
-
-                <div className="mt-3 whitespace-pre-wrap rounded-2xl bg-slate-50 p-5 text-sm leading-7 text-slate-700">
+                <div className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-700">
                   {selectedPost.content}
                 </div>
               </div>
+            </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Slug
-                </p>
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => openEditEditor(selectedPost)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                <Edit3 size={17} />
+                Edit
+              </button>
 
-                <p className="mt-1 break-all text-sm text-slate-600">
-                  /{selectedPost.slug}
-                </p>
-              </div>
-
-              <div className="flex gap-3 border-t border-slate-200 pt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedPost(null);
-                    openEditEditor(selectedPost);
-                  }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  <Edit3 size={17} />
-                  Edit Article
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedPost(null)}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700"
-                >
-                  Close
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => openArticle(selectedPost)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                <ExternalLink size={17} />
+                Open Article
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* ======================================================
+          CREATE / EDIT MODAL
+      ====================================================== */}
       {showEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-                  Content Manager
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
+                  {editingPost ? "Edit article" : "Create article"}
                 </p>
 
                 <h2 className="mt-1 text-xl font-bold text-slate-900">
-                  {editingPost ? "Edit Article" : "Create New Article"}
+                  {editingPost ? "Update Blog Article" : "New Blog Article"}
                 </h2>
               </div>
 
               <button
                 type="button"
-                onClick={closeEditor}
+                onClick={() => {
+                  if (!saving) {
+                    setShowEditor(false);
+                    resetEditor();
+                  }
+                }}
                 disabled={saving}
-                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
-                aria-label="Close editor"
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <X size={20} />
+                <X size={21} />
               </button>
             </div>
 
-            <div className="space-y-5 p-6">
-              {error && (
-                <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <AlertCircle
-                    className="mt-0.5 shrink-0 text-red-600"
-                    size={19}
-                  />
-
-                  <p className="text-sm leading-6 text-red-700">{error}</p>
-                </div>
-              )}
-
-              {/* Featured image */}
-              <div>
-                <label
-                  htmlFor="article-image"
-                  className="mb-2 block text-sm font-semibold text-slate-800"
-                >
-                  Featured Image URL
-                </label>
-
-                <input
-                  id="article-image"
-                  type="url"
-                  value={newImage}
-                  onChange={(event) => setNewImage(event.target.value)}
-                  placeholder="https://example.com/article-image.jpg"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                />
-
-                {newImage.trim() && (
-                  <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
-                    <img
-                      src={newImage}
-                      alt="Article preview"
-                      className="h-48 w-full object-cover"
-                    />
-                  </div>
-                )}
-
-                <p className="mt-2 text-xs text-slate-500">
-                  Add the image URL you want to use for the article. Actual
-                  file-upload storage can be added separately.
-                </p>
-              </div>
-
-              {/* Title */}
-              <div>
-                <label
-                  htmlFor="article-title"
-                  className="mb-2 block text-sm font-semibold text-slate-800"
-                >
-                  Article Title
-                </label>
-
-                <input
-                  id="article-title"
-                  type="text"
-                  value={newTitle}
-                  onChange={(event) => setNewTitle(event.target.value)}
-                  placeholder="Enter article title..."
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                />
-
-                {newTitle.trim() && (
-                  <p className="mt-2 text-xs text-slate-500">
-                    Slug:{" "}
-                    <span className="font-medium text-slate-700">
-                      /{slugify(newTitle)}
-                    </span>
-                  </p>
-                )}
-              </div>
-
-              {/* Status */}
-              <div>
-                <label
-                  htmlFor="article-status"
-                  className="mb-2 block text-sm font-semibold text-slate-800"
-                >
-                  Publishing Status
-                </label>
-
-                <select
-                  id="article-status"
-                  value={newStatus}
-                  onChange={(event) =>
-                    setNewStatus(event.target.value as ArticleStatus)
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                >
-                  <option value="Draft">Draft</option>
-                  <option value="Published">Published</option>
-                </select>
-              </div>
-
-              {/* Excerpt */}
-              <div>
-                <label
-                  htmlFor="article-excerpt"
-                  className="mb-2 block text-sm font-semibold text-slate-800"
-                >
-                  Article Excerpt
-                </label>
-
-                <textarea
-                  id="article-excerpt"
-                  rows={4}
-                  value={newExcerpt}
-                  onChange={(event) => setNewExcerpt(event.target.value)}
-                  placeholder="Write a short description of the article..."
-                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                />
-              </div>
-
-              {/* Full content */}
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="overflow-y-auto p-5 sm:p-6">
+              <div className="space-y-5">
+                {/* Title */}
+                <div>
                   <label
-                    htmlFor="article-content"
-                    className="block text-sm font-semibold text-slate-800"
+                    htmlFor="article-title"
+                    className="mb-2 block text-sm font-bold text-slate-700"
                   >
-                    Full Article Content
+                    Article Title
                   </label>
 
-                  <span className="text-xs text-slate-400">
-                    {newContent.trim()
-                      ? `${newContent
-                          .trim()
-                          .split(/\s+/)
-                          .filter(Boolean)
-                          .length.toLocaleString()} words • ${getReadTime(
-                          newContent,
-                        )}`
-                      : "0 words"}
-                  </span>
+                  <input
+                    id="article-title"
+                    type="text"
+                    value={newTitle}
+                    onChange={(event) => setNewTitle(event.target.value)}
+                    placeholder="Enter a clear, helpful article title"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
                 </div>
 
-                <textarea
-                  id="article-content"
-                  rows={14}
-                  value={newContent}
-                  onChange={(event) => setNewContent(event.target.value)}
-                  placeholder="Write the complete educational article here..."
-                  className="w-full resize-y rounded-xl border border-slate-200 px-4 py-3 text-sm leading-7 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                />
-              </div>
+                {/* Status */}
+                <div>
+                  <label
+                    htmlFor="article-status"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
+                    Publication Status
+                  </label>
 
-              {/* Publishing notice */}
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
-                <div className="flex gap-3">
-                  <Globe2 className="mt-0.5 shrink-0 text-blue-600" size={20} />
+                  <select
+                    id="article-status"
+                    value={newStatus}
+                    onChange={(event) =>
+                      setNewStatus(event.target.value as ArticleStatus)
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:max-w-xs"
+                  >
+                    <option value="Draft">Draft</option>
+
+                    <option value="Published">Published</option>
+                  </select>
+                </div>
+
+                {/* Excerpt */}
+                <div>
+                  <label
+                    htmlFor="article-excerpt"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
+                    Excerpt
+                    <span className="ml-2 font-normal text-slate-400">
+                      Optional
+                    </span>
+                  </label>
+
+                  <textarea
+                    id="article-excerpt"
+                    value={newExcerpt}
+                    onChange={(event) => setNewExcerpt(event.target.value)}
+                    rows={3}
+                    placeholder="A short summary that introduces the article..."
+                    className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                {/* ==================================================
+                    FEATURED IMAGE
+                ================================================== */}
+                <div>
+                  <label
+                    htmlFor="article-image-file"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
+                    Featured Image
+                  </label>
+
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                      <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        {editorImage ? (
+                          <img
+                            src={editorImage}
+                            alt="Featured image preview"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon size={28} className="text-slate-300" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-800">
+                          Upload an article image
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          JPG, PNG, or WEBP · Maximum 5 MB
+                        </p>
+
+                        <label
+                          htmlFor="article-image-file"
+                          className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                        >
+                          <ImageIcon size={17} />
+
+                          {newImageFile
+                            ? "Choose another image"
+                            : "Choose image"}
+                        </label>
+
+                        <input
+                          id="article-image-file"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                          onChange={handleImageFileChange}
+                          className="sr-only"
+                        />
+                      </div>
+                    </div>
+
+                    {newImageFile && (
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="truncate text-sm font-semibold text-emerald-800">
+                            {newImageFile.name}
+                          </p>
+
+                          <p className="text-xs font-medium text-emerald-700">
+                            {(newImageFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                        </div>
+
+                        <p className="mt-1 text-xs text-emerald-700">
+                          This image will be uploaded when you save the article.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Existing URL fallback */}
+                  <div className="mt-4">
+                    <label
+                      htmlFor="article-image-url"
+                      className="mb-2 block text-xs font-semibold text-slate-500"
+                    >
+                      Or use an image URL
+                    </label>
+
+                    <input
+                      id="article-image-url"
+                      type="url"
+                      value={newImage}
+                      onChange={(event) =>
+                        handleImageUrlChange(event.target.value)
+                      }
+                      placeholder="https://example.com/article-image.jpg"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+
+                    <p className="mt-2 text-xs text-slate-400">
+                      Selecting a new image file will replace the URL
+                      automatically.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="article-content"
+                      className="block text-sm font-bold text-slate-700"
+                    >
+                      Article Content
+                    </label>
+
+                    <span className="text-xs text-slate-400">
+                      {newContent.trim().split(/\s+/).filter(Boolean).length}{" "}
+                      words
+                    </span>
+                  </div>
+
+                  <textarea
+                    id="article-content"
+                    value={newContent}
+                    onChange={(event) => setNewContent(event.target.value)}
+                    rows={14}
+                    placeholder="Write the full health article here..."
+                    className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                {/* Publishing notice */}
+                <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                  <Globe2 size={18} className="mt-0.5 shrink-0 text-blue-600" />
 
                   <div>
-                    <p className="text-sm font-semibold text-blue-900">
-                      Publishing workflow
+                    <p className="text-sm font-bold text-blue-900">
+                      {newStatus === "Published"
+                        ? "This article will be published."
+                        : "This article will remain a draft."}
                     </p>
 
-                    <p className="mt-1 text-sm leading-6 text-blue-800">
-                      Draft articles remain unpublished. Selecting Published
-                      will store the publication timestamp in PostgreSQL and
-                      make the article available to the public publishing flow.
+                    <p className="mt-1 text-xs leading-5 text-blue-700">
+                      Published articles can be displayed on the public health
+                      articles section.
                     </p>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Buttons */}
-              <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => void handleSavePost()}
-                  disabled={saving || !newTitle.trim() || !newContent.trim()}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw size={17} className="animate-spin" />
-                      Saving...
-                    </>
-                  ) : editingPost ? (
-                    <>
-                      <Save size={17} />
-                      Save Changes
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 size={17} />
-                      Create Article
-                    </>
-                  )}
-                </button>
+            {/* Editor footer */}
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  setShowEditor(false);
+                  resetEditor();
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <X size={17} />
+                Cancel
+              </button>
 
-                <button
-                  type="button"
-                  onClick={closeEditor}
-                  disabled={saving}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void handleSavePost()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? (
+                  <>
+                    <RefreshCw size={17} className="animate-spin" />
+
+                    {newImageFile ? "Uploading & Saving..." : "Saving..."}
+                  </>
+                ) : (
+                  <>
+                    <Save size={17} />
+
+                    {editingPost ? "Update Article" : "Save Article"}
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1276,5 +1370,3 @@ function AdminBlog() {
     </div>
   );
 }
-
-export default AdminBlog;
