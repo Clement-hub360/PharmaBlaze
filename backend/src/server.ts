@@ -1,10 +1,9 @@
-import "dotenv/config";
-
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import path from "node:path";
+
+import { env } from "./config/env.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -19,20 +18,28 @@ import adminRoutes from "./routes/adminRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
 import prescriptionRoutes from "./routes/prescriptionRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
+import settingsRoutes from "./routes/settingsRoutes.js";
+
+import notFoundMiddleware from "./middleware/notFoundMiddleware.js";
+import errorMiddleware from "./middleware/errorMiddleware.js";
 
 const app = express();
 
-const PORT = Number(process.env.PORT) || 5000;
-
+const PORT = env.PORT;
 const HOST = "0.0.0.0";
-
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const FRONTEND_URL = env.FRONTEND_URL;
 
 const allowedOrigins = [
   FRONTEND_URL,
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
+
+/*
+ * ============================================================
+ * SECURITY HEADERS
+ * ============================================================
+ */
 
 app.use(
   helmet({
@@ -42,13 +49,18 @@ app.use(
   }),
 );
 
+/*
+ * ============================================================
+ * CORS
+ * ============================================================
+ */
+
 app.use(
   cors({
     origin(origin, callback) {
       /*
-       * Allow requests that do not include
-       * an Origin header, such as direct
-       * server-to-server requests.
+       * Allow requests that do not contain an Origin header,
+       * such as server-to-server requests or certain tools.
        */
       if (!origin) {
         return callback(null, true);
@@ -58,7 +70,7 @@ app.use(
         return callback(null, true);
       }
 
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      console.warn(`CORS blocked origin: ${origin}`);
 
       return callback(new Error("Not allowed by CORS"));
     },
@@ -68,12 +80,11 @@ app.use(
 );
 
 /*
- * JSON body limit.
- *
- * Prescription uploads use multipart/form-data
- * and are handled by Multer rather than
- * express.json().
+ * ============================================================
+ * REQUEST BODY
+ * ============================================================
  */
+
 app.use(
   express.json({
     limit: "2mb",
@@ -81,19 +92,13 @@ app.use(
 );
 
 /*
- * Serve uploaded files.
+ * ============================================================
+ * API RATE LIMITING
+ * ============================================================
  *
- * Files are physically stored inside:
- *
- * backend/uploads/
- *
- * They become available through:
- *
- * /uploads/<filename>
+ * Authentication routes also have their own stricter
+ * rate limiters.
  */
-const uploadsDirectory = path.join(process.cwd(), "uploads");
-
-app.use("/uploads", express.static(uploadsDirectory));
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -104,6 +109,12 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
+/*
+ * ============================================================
+ * HEALTH CHECK
+ * ============================================================
+ */
+
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,
@@ -112,54 +123,84 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+/*
+ * ============================================================
+ * API ROUTES
+ * ============================================================
+ */
+
 app.use("/api/auth", authRoutes);
+
 app.use("/api/products", productRoutes);
+
 app.use("/api/categories", categoryRoutes);
+
 app.use("/api/orders", orderRoutes);
+
 app.use("/api/contact", contactRoutes);
+
 app.use("/api/reviews", reviewRoutes);
+
 app.use("/api/blog", blogRoutes);
+
 app.use("/api/cart", cartRoutes);
+
 app.use("/api/customers", customerRoutes);
+
 app.use("/api/admin", adminRoutes);
+
+app.use("/api/admin/settings", settingsRoutes);
+
 app.use("/api/inventory", inventoryRoutes);
+
 app.use("/api/prescriptions", prescriptionRoutes);
+
 app.use("/api/wishlist", wishlistRoutes);
 
-app.use((_req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
+/*
+ * ============================================================
+ * 404 HANDLER
+ * ============================================================
+ */
 
-app.use(
-  (
-    error: unknown,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-  ) => {
-    console.error("❌ API Error:", error);
+app.use(notFoundMiddleware);
 
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
+/*
+ * ============================================================
+ * GLOBAL ERROR HANDLER
+ * ============================================================
+ */
 
-    res.status(500).json({
-      success: false,
-      message,
-    });
-  },
-);
+app.use(errorMiddleware);
+
+/*
+ * ============================================================
+ * START SERVER
+ * ============================================================
+ */
 
 app.listen(PORT, HOST, () => {
   console.log("");
+
   console.log("🔥 PHARMABLAZE API");
+
   console.log(`🚀 Server listening on ${HOST}:${PORT}`);
+
   console.log(`🌐 Frontend: ${FRONTEND_URL}`);
+
   console.log(`❤️ Health: http://localhost:${PORT}/api/health`);
-  console.log(`💊 Prescriptions: /api/prescriptions`);
-  console.log(`❤️ Wishlist: /api/wishlist`);
-  console.log(`📁 Uploads: /uploads`);
+
+  console.log("💊 Prescriptions: /api/prescriptions");
+
+  console.log("❤️ Wishlist: /api/wishlist");
+
+  console.log("⚙️ Settings: /api/admin/settings");
+
+  console.log("");
+
+  console.log(
+    "🔐 Prescription files are served through authenticated API access.",
+  );
+
   console.log("");
 });

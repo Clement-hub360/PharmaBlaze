@@ -1,6 +1,8 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+
 import prisma from "../config/database.js";
+import { env } from "../config/env.js";
 
 export type AuthUser = {
   id: string;
@@ -19,8 +21,6 @@ type LoginInput = {
   email: string;
   password: string;
 };
-
-const JWT_SECRET = process.env.JWT_SECRET || "pharmablaze-development-secret";
 
 const JWT_EXPIRES_IN = "7d";
 
@@ -91,7 +91,7 @@ export async function loginUser(input: LoginInput) {
       email: user.email,
       role: user.role,
     },
-    JWT_SECRET,
+    env.JWT_SECRET,
     {
       expiresIn: JWT_EXPIRES_IN,
     },

@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type ElementType,
+  type FormEvent,
+} from "react";
 
 import {
   Bell,
@@ -19,6 +25,7 @@ import api from "../services/api";
 
 import {
   getMyPrescriptions,
+  getPrescriptionFile,
   submitPrescription,
   type Prescription,
 } from "../services/prescriptionService";
@@ -115,7 +122,9 @@ function formatPrice(value: number | string) {
 }
 
 function formatDate(value: string) {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   const date = new Date(value);
 
@@ -128,20 +137,6 @@ function formatDate(value: string) {
     month: "short",
     day: "numeric",
   });
-}
-
-function getPrescriptionFileUrl(fileUrl: string) {
-  if (!fileUrl) {
-    return "";
-  }
-
-  if (fileUrl.startsWith("http")) {
-    return fileUrl;
-  }
-
-  const apiBaseUrl = "http://localhost:5000";
-
-  return `${apiBaseUrl}${fileUrl}`;
 }
 
 export default function Account() {
@@ -176,6 +171,10 @@ export default function Account() {
   const [prescriptionMessageType, setPrescriptionMessageType] = useState<
     "success" | "error" | ""
   >("");
+
+  const [prescriptionViewingId, setPrescriptionViewingId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     loadAccount();
@@ -309,12 +308,11 @@ export default function Account() {
     });
   }
 
-  function handlePrescriptionFileChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) {
+  function handlePrescriptionFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
 
     setPrescriptionMessage("");
+
     setPrescriptionMessageType("");
 
     if (!file) {
@@ -357,12 +355,11 @@ export default function Account() {
     setPrescriptionFile(file);
   }
 
-  async function handlePrescriptionSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function handlePrescriptionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setPrescriptionMessage("");
+
     setPrescriptionMessageType("");
 
     if (!prescriptionFile) {
@@ -382,6 +379,7 @@ export default function Account() {
       });
 
       setPrescriptionFile(null);
+
       setPrescriptionNotes("");
 
       const fileInput = document.getElementById(
@@ -413,6 +411,74 @@ export default function Account() {
     }
   }
 
+  async function handleViewPrescription(prescriptionId: string) {
+    setPrescriptionMessage("");
+
+    setPrescriptionMessageType("");
+
+    setPrescriptionViewingId(prescriptionId);
+
+    try {
+      const fileBlob = await getPrescriptionFile(prescriptionId);
+
+      if (!fileBlob || fileBlob.size === 0) {
+        throw new Error("The prescription file is empty.");
+      }
+
+      const fileUrl = URL.createObjectURL(fileBlob);
+
+      const openedWindow = window.open(
+        fileUrl,
+        "_blank",
+        "noopener,noreferrer",
+      );
+
+      if (!openedWindow) {
+        /*
+         * Some browsers block window.open when it happens
+         * after an asynchronous request.
+         *
+         * If that happens, trigger a normal download/open
+         * action using a temporary anchor instead.
+         */
+        const link = document.createElement("a");
+
+        link.href = fileUrl;
+
+        link.target = "_blank";
+
+        link.rel = "noopener noreferrer";
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+      }
+
+      window.setTimeout(() => {
+        URL.revokeObjectURL(fileUrl);
+      }, 60_000);
+    } catch (error: any) {
+      console.error("Unable to open prescription:", error);
+
+      if (error?.response?.status === 401) {
+        handleLogout();
+
+        return;
+      }
+
+      setPrescriptionMessage(
+        error?.response?.data?.message ??
+          "Unable to open this prescription. Please try again.",
+      );
+
+      setPrescriptionMessageType("error");
+    } finally {
+      setPrescriptionViewingId(null);
+    }
+  }
+
   async function handleRemoveWishlist(productId: string) {
     try {
       await removeFromWishlist(productId);
@@ -433,7 +499,7 @@ export default function Account() {
   const sidebarItems: Array<{
     id: Tab;
     label: string;
-    icon: React.ElementType;
+    icon: ElementType;
   }> = [
     {
       id: "overview",
@@ -495,6 +561,7 @@ export default function Account() {
   return (
     <main className="min-h-screen bg-gray-50">
       {/* HERO */}
+
       <section className="bg-gradient-to-r from-green-700 to-green-600 px-4 py-10 text-white sm:py-14">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -526,10 +593,12 @@ export default function Account() {
       </section>
 
       {/* MAIN CONTENT */}
+
       <section className="px-4 py-8 sm:py-10">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
             {/* SIDEBAR */}
+
             <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
               <div className="mb-3 rounded-xl bg-green-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
@@ -572,8 +641,10 @@ export default function Account() {
             </aside>
 
             {/* CONTENT */}
+
             <div className="min-w-0">
               {/* OVERVIEW */}
+
               {activeTab === "overview" && (
                 <div className="space-y-6">
                   <div>
@@ -643,6 +714,7 @@ export default function Account() {
                   </div>
 
                   {/* PERSONAL INFORMATION */}
+
                   <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="mb-5 flex items-center justify-between">
                       <div>
@@ -702,6 +774,7 @@ export default function Account() {
                   </div>
 
                   {/* RECENT ORDERS */}
+
                   <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="mb-5 flex items-center justify-between gap-4">
                       <div>
@@ -782,6 +855,7 @@ export default function Account() {
               )}
 
               {/* ORDERS */}
+
               {activeTab === "orders" && (
                 <div className="space-y-6">
                   <div>
@@ -943,6 +1017,7 @@ export default function Account() {
               )}
 
               {/* PRESCRIPTIONS */}
+
               {activeTab === "prescriptions" && (
                 <div className="space-y-6">
                   <div>
@@ -1091,17 +1166,22 @@ export default function Account() {
 
                             <div className="mt-4 flex flex-wrap gap-3">
                               {prescription.fileUrl && (
-                                <a
-                                  href={getPrescriptionFileUrl(
-                                    prescription.fileUrl,
-                                  )}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 rounded-lg border border-green-600 px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-50"
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleViewPrescription(prescription.id)
+                                  }
+                                  disabled={
+                                    prescriptionViewingId === prescription.id
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-lg border border-green-600 px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   <FileText className="h-4 w-4" />
-                                  View Prescription
-                                </a>
+
+                                  {prescriptionViewingId === prescription.id
+                                    ? "Opening..."
+                                    : "View Prescription"}
+                                </button>
                               )}
                             </div>
 
@@ -1125,6 +1205,7 @@ export default function Account() {
               )}
 
               {/* WISHLIST */}
+
               {activeTab === "wishlist" && (
                 <div className="space-y-6">
                   <div>
@@ -1224,6 +1305,7 @@ export default function Account() {
               )}
 
               {/* ADDRESSES */}
+
               {activeTab === "addresses" && (
                 <div className="space-y-6">
                   <div>
@@ -1257,6 +1339,7 @@ export default function Account() {
               )}
 
               {/* NOTIFICATIONS */}
+
               {activeTab === "notifications" && (
                 <div className="space-y-6">
                   <div>
@@ -1291,6 +1374,7 @@ export default function Account() {
               )}
 
               {/* SECURITY */}
+
               {activeTab === "security" && (
                 <div className="space-y-6">
                   <div>

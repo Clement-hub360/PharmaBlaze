@@ -1,22 +1,15 @@
 import type { ErrorRequestHandler } from "express";
 
-const errorMiddleware: ErrorRequestHandler = (error, _req, res, _next) => { 
-  console.error("❌ API Error:", error);
+const errorMiddleware: ErrorRequestHandler = (error, _req, res, _next) => {
+  console.error("Unhandled application error:", error);
 
-  const statusCode =
-    typeof error.statusCode === "number" ? error.statusCode : 500;
+  if (res.headersSent) {
+    return;
+  }
 
-  const message =
-    error instanceof Error ? error.message : "Internal server error";
-
-  res.status(statusCode).json({
+  res.status(500).json({
     success: false,
-    message,
-    ...(process.env.NODE_ENV === "development"
-      ? {
-          error: error instanceof Error ? error.stack : error,
-        }
-      : {}),
+    message: "Internal server error",
   });
 };
 

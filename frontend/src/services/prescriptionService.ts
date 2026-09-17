@@ -27,6 +27,7 @@ export type SubmitPrescriptionInput = {
 
 export async function getMyPrescriptions(): Promise<Prescription[]> {
   const response = await api.get("/prescriptions/my");
+
   return response.data.data as Prescription[];
 }
 
@@ -34,6 +35,7 @@ export async function getMyPrescription(
   prescriptionId: string,
 ): Promise<Prescription> {
   const response = await api.get(`/prescriptions/my/${prescriptionId}`);
+
   return response.data.data as Prescription;
 }
 
@@ -60,4 +62,14 @@ export async function submitPrescription(
   });
 
   return response.data.data as Prescription;
+}
+
+export async function getPrescriptionFile(
+  prescriptionId: string,
+): Promise<Blob> {
+  const response = await api.get(`/prescriptions/${prescriptionId}/file`, {
+    responseType: "blob",
+  });
+
+  return response.data as Blob;
 }

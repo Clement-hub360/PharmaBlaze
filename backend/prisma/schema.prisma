@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -325,4 +326,48 @@ model AuditLog {
   @@index([entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model PharmacySettings {
+  id String @id @default("default")
+
+  pharmacyName String @default("Pharmablaze Pharmacy")
+  phone        String  @default("0912 828 6533")
+  email        String?
+  address      String  @default("2V56+V39, 235 Abak Rd, Uyo 520104, Akwa Ibom")
+  website      String?
+  facebook     String?
+  instagram    String?
+
+  monday    String @default("8:00 AM - 8:00 PM")
+  tuesday   String @default("8:00 AM - 8:00 PM")
+  wednesday String @default("8:00 AM - 8:00 PM")
+  thursday  String @default("8:00 AM - 8:00 PM")
+  friday    String @default("8:00 AM - 8:00 PM")
+  saturday  String @default("9:00 AM - 6:00 PM")
+  sunday    String @default("Closed")
+
+  storeEnabled        Boolean @default(true)
+  allowOrders         Boolean @default(true)
+  requireConfirmation Boolean @default(true)
+
+  deliveryEnabled     Boolean @default(true)
+  deliveryFee         Decimal @default(1500) @db.Decimal(12, 2)
+  freeDeliveryMinimum Decimal @default(50000) @db.Decimal(12, 2)
+
+  paymentOnConfirmation Boolean @default(true)
+  onlinePayment         Boolean @default(false)
+
+  emailNotifications   Boolean @default(true)
+  orderNotifications   Boolean @default(true)
+  reviewNotifications  Boolean @default(true)
+  messageNotifications Boolean @default(true)
+
+  twoFactorEnabled Boolean @default(false)
+  sessionTimeout   Int     @default(60)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pharmacy_settings")
 }

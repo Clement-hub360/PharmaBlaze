@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
 import {
   Building2,
   MapPin,
@@ -15,6 +16,8 @@ import {
   Store,
   X,
   Share2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 type SettingsTab =
@@ -25,9 +28,72 @@ type SettingsTab =
   | "notifications"
   | "security";
 
+type OpeningHours = {
+  monday: string;
+  tuesday: string;
+  wednesday: string;
+  thursday: string;
+  friday: string;
+  saturday: string;
+  sunday: string;
+};
+
+type SettingsResponse = {
+  id: string;
+  pharmacyName: string;
+  phone: string;
+  email: string | null;
+  address: string;
+  website: string | null;
+  facebook: string | null;
+  instagram: string | null;
+
+  monday: string;
+  tuesday: string;
+  wednesday: string;
+  thursday: string;
+  friday: string;
+  saturday: string;
+  sunday: string;
+
+  storeEnabled: boolean;
+  allowOrders: boolean;
+  requireConfirmation: boolean;
+
+  deliveryEnabled: boolean;
+  deliveryFee: number;
+  freeDeliveryMinimum: number;
+
+  paymentOnConfirmation: boolean;
+  onlinePayment: boolean;
+
+  emailNotifications: boolean;
+  orderNotifications: boolean;
+  reviewNotifications: boolean;
+  messageNotifications: boolean;
+
+  twoFactorEnabled: boolean;
+  sessionTimeout: number;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ApiResponse<T> = {
+  success?: boolean;
+  message?: string;
+  data?: T;
+};
+
+const API_BASE_URL = "http://localhost:5000/api";
+
 function AdminSettings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("pharmacy");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   const [pharmacyName, setPharmacyName] = useState("Pharmablaze Pharmacy");
   const [phone, setPhone] = useState("0912 828 6533");
@@ -39,7 +105,7 @@ function AdminSettings() {
   const [facebook, setFacebook] = useState("");
   const [instagram, setInstagram] = useState("");
 
-  const [openingHours, setOpeningHours] = useState({
+  const [openingHours, setOpeningHours] = useState<OpeningHours>({
     monday: "8:00 AM - 8:00 PM",
     tuesday: "8:00 AM - 8:00 PM",
     wednesday: "8:00 AM - 8:00 PM",
@@ -101,24 +167,216 @@ function AdminSettings() {
     },
   ];
 
-  const handleSave = () => {
-    setSaved(true);
+  useEffect(() => {
+    void loadSettings();
+  }, []);
 
-    window.setTimeout(() => {
-      setSaved(false);
-    }, 3000);
-  };
+  async function loadSettings() {
+    setLoading(true);
+    setError("");
 
-  const updateHours = (day: keyof typeof openingHours, value: string) => {
+    try {
+      const token = localStorage.getItem("pharmablaze_token");
+
+      if (!token) {
+        throw new Error("Your admin session has expired. Please log in again.");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/admin/settings`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = (await response.json()) as ApiResponse<SettingsResponse>;
+
+      if (!response.ok || !result.data) {
+        throw new Error(result.message || "Failed to load pharmacy settings.");
+      }
+
+      applySettings(result.data);
+    } catch (requestError) {
+      console.error("Load settings error:", requestError);
+
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load pharmacy settings.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applySettings(settings: SettingsResponse) {
+    setPharmacyName(settings.pharmacyName);
+    setPhone(settings.phone);
+    setEmail(settings.email ?? "");
+    setAddress(settings.address);
+    setWebsite(settings.website ?? "");
+    setFacebook(settings.facebook ?? "");
+    setInstagram(settings.instagram ?? "");
+
+    setOpeningHours({
+      monday: settings.monday,
+      tuesday: settings.tuesday,
+      wednesday: settings.wednesday,
+      thursday: settings.thursday,
+      friday: settings.friday,
+      saturday: settings.saturday,
+      sunday: settings.sunday,
+    });
+
+    setStoreEnabled(settings.storeEnabled);
+    setAllowOrders(settings.allowOrders);
+    setRequireConfirmation(settings.requireConfirmation);
+
+    setDeliveryEnabled(settings.deliveryEnabled);
+    setDeliveryFee(String(settings.deliveryFee));
+    setFreeDeliveryMinimum(String(settings.freeDeliveryMinimum));
+
+    setPaymentOnConfirmation(settings.paymentOnConfirmation);
+    setOnlinePayment(settings.onlinePayment);
+
+    setEmailNotifications(settings.emailNotifications);
+    setOrderNotifications(settings.orderNotifications);
+    setReviewNotifications(settings.reviewNotifications);
+    setMessageNotifications(settings.messageNotifications);
+
+    setTwoFactorEnabled(settings.twoFactorEnabled);
+    setSessionTimeout(String(settings.sessionTimeout));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaved(false);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("pharmablaze_token");
+
+      if (!token) {
+        throw new Error("Your admin session has expired. Please log in again.");
+      }
+
+      const parsedDeliveryFee = Number(deliveryFee);
+      const parsedFreeDeliveryMinimum = Number(freeDeliveryMinimum);
+      const parsedSessionTimeout = Number(sessionTimeout);
+
+      if (!Number.isFinite(parsedDeliveryFee) || parsedDeliveryFee < 0) {
+        throw new Error("Please enter a valid delivery fee.");
+      }
+
+      if (
+        !Number.isFinite(parsedFreeDeliveryMinimum) ||
+        parsedFreeDeliveryMinimum < 0
+      ) {
+        throw new Error("Please enter a valid free delivery minimum.");
+      }
+
+      if (
+        !Number.isInteger(parsedSessionTimeout) ||
+        parsedSessionTimeout < 5 ||
+        parsedSessionTimeout > 1440
+      ) {
+        throw new Error("Session timeout must be between 5 and 1440 minutes.");
+      }
+
+      const payload = {
+        pharmacyName,
+        phone,
+        email,
+        address,
+        website,
+        facebook,
+        instagram,
+
+        monday: openingHours.monday,
+        tuesday: openingHours.tuesday,
+        wednesday: openingHours.wednesday,
+        thursday: openingHours.thursday,
+        friday: openingHours.friday,
+        saturday: openingHours.saturday,
+        sunday: openingHours.sunday,
+
+        storeEnabled,
+        allowOrders,
+        requireConfirmation,
+
+        deliveryEnabled,
+        deliveryFee: parsedDeliveryFee,
+        freeDeliveryMinimum: parsedFreeDeliveryMinimum,
+
+        paymentOnConfirmation,
+        onlinePayment,
+
+        emailNotifications,
+        orderNotifications,
+        reviewNotifications,
+        messageNotifications,
+
+        twoFactorEnabled,
+        sessionTimeout: parsedSessionTimeout,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/admin/settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = (await response.json()) as ApiResponse<SettingsResponse>;
+
+      if (!response.ok || !result.data) {
+        throw new Error(result.message || "Failed to save pharmacy settings.");
+      }
+
+      applySettings(result.data);
+
+      setSaved(true);
+
+      window.setTimeout(() => {
+        setSaved(false);
+      }, 4000);
+    } catch (requestError) {
+      console.error("Save settings error:", requestError);
+
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to save pharmacy settings.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const updateHours = (day: keyof OpeningHours, value: string) => {
     setOpeningHours((current) => ({
       ...current,
       [day]: value,
     }));
   };
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-sm font-medium text-slate-500">
+            Loading pharmacy settings...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -139,10 +397,17 @@ function AdminSettings() {
             </div>
 
             <button
-              onClick={handleSave}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saved ? (
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : saved ? (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
                   Settings Saved
@@ -158,10 +423,29 @@ function AdminSettings() {
         </div>
       </section>
 
-      {/* Main */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {error && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+
+            <div className="flex-1">
+              <p className="text-sm font-bold text-red-900">Settings Error</p>
+
+              <p className="mt-1 text-sm leading-6 text-red-700">{error}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setError("")}
+              className="rounded-lg p-1 text-red-400 transition hover:bg-red-100 hover:text-red-700"
+              aria-label="Close error"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-          {/* Sidebar */}
           <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="mb-3 px-3 py-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -176,6 +460,7 @@ function AdminSettings() {
 
                 return (
                   <button
+                    type="button"
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${
@@ -192,9 +477,7 @@ function AdminSettings() {
             </nav>
           </aside>
 
-          {/* Content */}
           <section className="space-y-6">
-            {/* Pharmacy Settings */}
             {activeTab === "pharmacy" && (
               <>
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -304,7 +587,6 @@ function AdminSettings() {
                   </div>
                 </div>
 
-                {/* Social Links */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex items-start gap-4">
                     <div className="rounded-xl bg-slate-100 p-3 text-slate-600">
@@ -330,6 +612,7 @@ function AdminSettings() {
 
                       <div className="relative">
                         <Share2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
                         <input
                           value={facebook}
                           onChange={(event) => setFacebook(event.target.value)}
@@ -358,7 +641,6 @@ function AdminSettings() {
                   </div>
                 </div>
 
-                {/* Opening Hours */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="flex items-start gap-4">
                     <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
@@ -378,9 +660,7 @@ function AdminSettings() {
 
                   <div className="mt-6 space-y-3">
                     {(
-                      Object.keys(openingHours) as Array<
-                        keyof typeof openingHours
-                      >
+                      Object.keys(openingHours) as Array<keyof OpeningHours>
                     ).map((day) => (
                       <div
                         key={day}
@@ -404,7 +684,6 @@ function AdminSettings() {
               </>
             )}
 
-            {/* Store Settings */}
             {activeTab === "store" && (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start gap-4">
@@ -452,15 +731,13 @@ function AdminSettings() {
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-blue-700">
-                    These settings are currently frontend-only. They will be
-                    connected to the backend when the API and database are
-                    implemented.
+                    These settings are now connected to the pharmacy database.
+                    Changes are saved when you select &quot;Save Changes&quot;.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Delivery Settings */}
             {activeTab === "delivery" && (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start gap-4">
@@ -496,6 +773,7 @@ function AdminSettings() {
 
                     <input
                       type="number"
+                      min="0"
                       value={deliveryFee}
                       onChange={(event) => setDeliveryFee(event.target.value)}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -509,6 +787,7 @@ function AdminSettings() {
 
                     <input
                       type="number"
+                      min="0"
                       value={freeDeliveryMinimum}
                       onChange={(event) =>
                         setFreeDeliveryMinimum(event.target.value)
@@ -532,7 +811,6 @@ function AdminSettings() {
               </div>
             )}
 
-            {/* Payment Settings */}
             {activeTab === "payments" && (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start gap-4">
@@ -574,7 +852,7 @@ function AdminSettings() {
 
                   <p className="mt-1 text-sm leading-6 text-red-700">
                     Never store payment-card numbers, CVV codes, secret API
-                    keys, or other payment credentials in this frontend page.
+                    keys, or other payment credentials in this settings page.
                     Production payment credentials belong in secure backend
                     environment variables and should be handled through a
                     compliant payment provider.
@@ -583,7 +861,6 @@ function AdminSettings() {
               </div>
             )}
 
-            {/* Notifications */}
             {activeTab === "notifications" && (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start gap-4">
@@ -634,7 +911,6 @@ function AdminSettings() {
               </div>
             )}
 
-            {/* Security */}
             {activeTab === "security" && (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -658,7 +934,7 @@ function AdminSettings() {
                   <div className="mt-6 divide-y divide-slate-100">
                     <ToggleRow
                       title="Two-Factor Authentication"
-                      description="Require an additional verification step for administrator login."
+                      description="Store the administrator 2FA preference. Full 2FA verification will be implemented during security hardening."
                       enabled={twoFactorEnabled}
                       onChange={setTwoFactorEnabled}
                     />
@@ -696,11 +972,10 @@ function AdminSettings() {
 
                       <p className="mt-2 text-sm leading-6 text-red-700">
                         Authentication, password hashing, JWT handling,
-                        role-based access control, rate limiting, secure
-                        cookies/tokens, server-side validation, and audit
-                        logging will be implemented in the backend. These
-                        frontend controls are only interface settings at this
-                        stage.
+                        role-based access control, rate limiting, secure token
+                        handling, server-side validation, and audit logging are
+                        handled by the backend. Full 2FA implementation remains
+                        part of the production security-hardening stage.
                       </p>
                     </div>
                   </div>
@@ -708,13 +983,19 @@ function AdminSettings() {
               </div>
             )}
 
-            {/* Save Button */}
             <div className="flex justify-end border-t border-slate-200 pt-6">
               <button
-                onClick={handleSave}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saved ? (
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : saved ? (
                   <>
                     <CheckCircle2 className="h-4 w-4" />
                     Saved Successfully
@@ -731,7 +1012,6 @@ function AdminSettings() {
         </div>
       </main>
 
-      {/* Saved Notification */}
       {saved && (
         <div className="fixed bottom-5 right-5 z-50">
           <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4 shadow-xl">
@@ -743,11 +1023,12 @@ function AdminSettings() {
               <p className="text-sm font-bold text-slate-900">Settings saved</p>
 
               <p className="text-xs text-slate-500">
-                Your changes have been applied to this session.
+                Your changes have been saved to the database.
               </p>
             </div>
 
             <button
+              type="button"
               onClick={() => setSaved(false)}
               className="ml-2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               aria-label="Close notification"

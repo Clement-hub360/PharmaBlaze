@@ -1,4 +1,5 @@
 import { Router } from "express";
+
 import multer from "multer";
 
 import {
@@ -7,6 +8,7 @@ import {
   getSinglePrescription,
   getMyPrescriptions,
   getMyPrescription,
+  getPrescriptionFile,
   submitPrescription,
 } from "../controllers/prescriptionController.js";
 
@@ -17,27 +19,27 @@ const router = Router();
 /*
  * Prescription file upload configuration.
  *
- * Files are temporarily stored in memory.
- * The actual permanent storage layer will be added next.
+ * Files are temporarily stored in memory and then
+ * written to the private prescription storage directory
+ * by the controller.
  */
 const upload = multer({
   storage: multer.memoryStorage(),
 
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 10 * 1024 * 1024,
   },
 
   fileFilter: (_req, file, callback) => {
     const allowedMimeTypes = [
       "image/jpeg",
       "image/png",
-      "image/webp",
       "application/pdf",
     ];
 
     if (!allowedMimeTypes.includes(file.mimetype)) {
       callback(
-        new Error("Only JPG, PNG, WEBP images and PDF files are allowed."),
+        new Error("Only JPG, PNG and PDF files are allowed."),
       );
       return;
     }
@@ -83,13 +85,15 @@ router.get("/my", getMyPrescriptions);
 router.get("/my/:id", getMyPrescription);
 
 /*
- * Get the prescription file.
+ * Get a prescription file securely.
  *
  * GET /api/prescriptions/:id/file
  *
- * This route will be added when the permanent
- * prescription file storage is connected.
+ * Customers may only access their own prescription files.
+ * Administrators may access prescription files belonging
+ * to any customer.
  */
+router.get("/:id/file", getPrescriptionFile);
 
 /*
  * ============================================================
