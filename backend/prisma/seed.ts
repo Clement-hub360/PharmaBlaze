@@ -42,6 +42,7 @@ const products = [
   {
     name: "Product Example One",
     slug: "product-example-one",
+    sku: "PB-PHARM-001",
     description: "Example pharmacy product for development.",
     price: 4500,
     stock: 25,
@@ -53,6 +54,7 @@ const products = [
   {
     name: "Product Example Two",
     slug: "product-example-two",
+    sku: "PB-WELL-001",
     description: "Example wellness product for development.",
     price: 7200,
     stock: 18,
@@ -64,6 +66,7 @@ const products = [
   {
     name: "Product Example Three",
     slug: "product-example-three",
+    sku: "PB-CARE-001",
     description: "Example personal care product for development.",
     price: 5800,
     stock: 32,
@@ -75,6 +78,7 @@ const products = [
   {
     name: "Product Example Four",
     slug: "product-example-four",
+    sku: "PB-VIT-001",
     description: "Example vitamins and nutritional product for development.",
     price: 9100,
     stock: 12,
@@ -163,6 +167,7 @@ async function main() {
       },
       update: {
         name: product.name,
+        sku: product.sku,
         description: product.description,
         price: product.price,
         stock: product.stock,
@@ -175,6 +180,7 @@ async function main() {
       create: {
         name: product.name,
         slug: product.slug,
+        sku: product.sku,
         description: product.description,
         price: product.price,
         stock: product.stock,
