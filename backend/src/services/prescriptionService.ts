@@ -1,6 +1,6 @@
 import prisma from "../config/database.js";
 
-import type { PrescriptionStatus } from "@prisma/client";
+import type { PrescriptionStatus } from "../generated/prisma/enums.js";
 
 export async function getAllPrescriptions() {
   return prisma.prescription.findMany({

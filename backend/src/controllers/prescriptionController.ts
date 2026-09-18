@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-import type { PrescriptionStatus } from "@prisma/client";
+import type { PrescriptionStatus } from "../generated/prisma/enums.js";
 
 import { randomUUID } from "node:crypto";
 import { readFile, mkdir, writeFile } from "node:fs/promises";

@@ -3,7 +3,7 @@ import prisma from "../config/database.js";
 import type {
   DeliveryMethod as PrismaDeliveryMethod,
   OrderStatus as PrismaOrderStatus,
-} from "@prisma/client";
+} from "../generated/prisma/enums.js";
 
 export type OrderStatus =
   | "PENDING"
