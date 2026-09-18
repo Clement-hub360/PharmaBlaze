@@ -2,28 +2,25 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Eye, EyeOff, LockKeyhole, Mail, Pill } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import api from "../services/api";
+
+type LoginUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role?: string;
+};
 
 type LoginResponse = {
   success?: boolean;
   message?: string;
   data?: {
     token?: string;
-    user?: {
-      id: string;
-      name: string;
-      email: string;
-      phone?: string | null;
-      role?: string;
-    };
+    user?: LoginUser;
   };
   token?: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-    phone?: string | null;
-    role?: string;
-  };
+  user?: LoginUser;
 };
 
 export default function Login() {
@@ -58,27 +55,12 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: normalizedEmail,
-            password,
-          }),
-        },
-      );
+      const response = await api.post<LoginResponse>("/auth/login", {
+        email: normalizedEmail,
+        password,
+      });
 
-      const result = (await response.json()) as LoginResponse;
-
-      if (!response.ok) {
-        throw new Error(
-          result.message || "Invalid email or password.",
-        );
-      }
+      const result = response.data;
 
       const token = result.data?.token ?? result.token;
       const loggedInUser = result.data?.user ?? result.user;
@@ -95,25 +77,10 @@ export default function Login() {
         );
       }
 
-      // Save authentication information.
       localStorage.setItem("pharmablaze_token", token);
-      localStorage.setItem(
-        "pharmablaze_user",
-        JSON.stringify(loggedInUser),
-      );
+      localStorage.setItem("pharmablaze_user", JSON.stringify(loggedInUser));
 
       setSuccessMessage("Login successful. Redirecting...");
-
-      /*
-       * Decide where the user should go after login.
-       *
-       * ADMIN users go to the admin dashboard.
-       * CUSTOMER users go to their customer account dashboard.
-       *
-       * We intentionally ignore "/" as a redirect destination because
-       * that would send a successfully logged-in customer back to the
-       * homepage instead of their account dashboard.
-       */
 
       const role = loggedInUser.role?.toUpperCase();
 
@@ -126,9 +93,7 @@ export default function Login() {
       }
 
       const requestedPath =
-        typeof location.state?.from === "string"
-          ? location.state.from
-          : "";
+        typeof location.state?.from === "string" ? location.state.from : "";
 
       const isValidProtectedPath =
         requestedPath &&
@@ -136,9 +101,7 @@ export default function Login() {
         requestedPath !== "/login" &&
         requestedPath !== "/register";
 
-      const destination = isValidProtectedPath
-        ? requestedPath
-        : "/account";
+      const destination = isValidProtectedPath ? requestedPath : "/account";
 
       window.setTimeout(() => {
         navigate(destination, { replace: true });
@@ -268,21 +231,13 @@ export default function Login() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowPassword((current) => !current)
-                    }
+                    onClick={() => setShowPassword((current) => !current)}
                     aria-label={
-                      showPassword
-                        ? "Hide password"
-                        : "Show password"
+                      showPassword ? "Hide password" : "Show password"
                     }
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-gray-600"
                   >
-                    {showPassword ? (
-                      <EyeOff size={19} />
-                    ) : (
-                      <Eye size={19} />
-                    )}
+                    {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                   </button>
                 </div>
               </div>
@@ -298,14 +253,14 @@ export default function Login() {
 
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-gray-200" />
+
               <span className="text-xs text-gray-400">OR</span>
+
               <div className="h-px flex-1 bg-gray-200" />
             </div>
 
             <div className="text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?
-              </p>
+              <p className="text-sm text-gray-600">Don't have an account?</p>
 
               <Link
                 to="/register"
@@ -317,8 +272,8 @@ export default function Login() {
 
             <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3 text-center">
               <p className="text-xs leading-5 text-gray-500">
-                Your account gives you access to orders, prescriptions,
-                wishlist and other Pharmablaze services.
+                Your account gives you access to orders, prescriptions, wishlist
+                and other Pharmablaze services.
               </p>
             </div>
           </div>
