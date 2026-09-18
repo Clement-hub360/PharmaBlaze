@@ -85,7 +85,7 @@ type ApiResponse<T> = {
   data?: T;
 };
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "https://pharmablaze-fullstack.onrender.com/api";
 
 function AdminSettings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("pharmacy");
