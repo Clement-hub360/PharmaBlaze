@@ -9,28 +9,25 @@ import {
   User,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import api from "../services/api";
+
+type RegisterUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role?: string;
+};
 
 type RegisterResponse = {
   success?: boolean;
   message?: string;
   data?: {
     token?: string;
-    user?: {
-      id: string;
-      name: string;
-      email: string;
-      phone?: string | null;
-      role?: string;
-    };
+    user?: RegisterUser;
   };
   token?: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-    phone?: string | null;
-    role?: string;
-  };
+  user?: RegisterUser;
 };
 
 export default function Register() {
@@ -46,7 +43,6 @@ export default function Register() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -56,6 +52,8 @@ export default function Register() {
       ...current,
       [field]: value,
     }));
+
+    setError("");
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -96,26 +94,14 @@ export default function Register() {
     try {
       setLoading(true);
 
-      const response = await fetch("http://localhost:5000/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          phone,
-          password: form.password,
-        }),
+      const response = await api.post<RegisterResponse>("/auth/register", {
+        name,
+        email,
+        phone,
+        password: form.password,
       });
 
-      const result: RegisterResponse = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result.message || "Registration failed. Please try again.",
-        );
-      }
+      const result = response.data;
 
       const token = result.data?.token ?? result.token;
       const registeredUser = result.data?.user ?? result.user;
@@ -133,15 +119,17 @@ export default function Register() {
 
       setSuccess("Account created successfully. Redirecting...");
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         navigate("/account", { replace: true });
       }, 800);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.",
-      );
+      console.error("Registration error:", err);
+
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -164,6 +152,7 @@ export default function Register() {
               <div className="text-xl font-bold text-slate-900">
                 Pharmablaze
               </div>
+
               <div className="text-xs font-medium text-emerald-600">
                 Pharmacy
               </div>
@@ -217,7 +206,8 @@ export default function Register() {
                   onChange={(e) => handleChange("name", e.target.value)}
                   placeholder="Enter your full name"
                   autoComplete="name"
-                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
               </div>
             </div>
@@ -244,7 +234,8 @@ export default function Register() {
                   onChange={(e) => handleChange("email", e.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
               </div>
             </div>
@@ -271,7 +262,8 @@ export default function Register() {
                   onChange={(e) => handleChange("phone", e.target.value)}
                   placeholder="08012345678"
                   autoComplete="tel"
-                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
               </div>
             </div>
@@ -298,7 +290,8 @@ export default function Register() {
                   onChange={(e) => handleChange("password", e.target.value)}
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
-                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
 
                 <button
@@ -306,6 +299,7 @@ export default function Register() {
                   onClick={() => setShowPassword((current) => !current)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
                   aria-label={showPassword ? "Hide password" : "Show password"}
+                  disabled={loading}
                 >
                   {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                 </button>
@@ -336,7 +330,8 @@ export default function Register() {
                   }
                   placeholder="Enter your password again"
                   autoComplete="new-password"
-                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
 
                 <button
@@ -348,6 +343,7 @@ export default function Register() {
                       ? "Hide confirm password"
                       : "Show confirm password"
                   }
+                  disabled={loading}
                 >
                   {showConfirmPassword ? (
                     <EyeOff size={19} />
@@ -383,7 +379,7 @@ export default function Register() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">
-          By creating an account, you agree to use Pharmablaze Pharmacy's
+          By creating an account, you agree to use Pharmablaze Pharmacy&apos;s
           services responsibly.
         </p>
       </div>
