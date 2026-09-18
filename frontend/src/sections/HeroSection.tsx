@@ -4,24 +4,11 @@ import { Link } from "react-router-dom";
 function HeroSection() {
   return (
     <section className="relative isolate min-h-[760px] overflow-hidden bg-slate-950 text-white">
-      {/* =========================================================
-          LARGE HERO BACKGROUND IMAGE
-          ---------------------------------------------------------
-          Add your pharmacy/healthcare image here:
-
-          frontend/
-            public/
-              images/
-                pharmacy-hero.jpg
-
-          The section will still look good if the image is not
-          available yet because of the dark gradient overlays.
-      ========================================================== */}
-
+      {/* Large hero background image */}
       <div
         className="absolute inset-0 -z-20 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: "url('/images/pha_hero.jpg')",
+          backgroundImage: "url('/images/pha-hero.jpg.jpg')",
         }}
       />
 
@@ -34,24 +21,14 @@ function HeroSection() {
       {/* Bottom fade */}
       <div className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-t from-slate-950 to-transparent" />
 
-      {/* =========================================================
-          DECORATIVE GREEN LIGHT
-      ========================================================== */}
-
+      {/* Decorative green light */}
       <div className="pointer-events-none absolute -left-40 top-10 -z-10 h-[420px] w-[420px] rounded-full bg-green-700/25 blur-[130px]" />
-
       <div className="pointer-events-none absolute right-[15%] top-24 -z-10 h-[300px] w-[300px] rounded-full bg-emerald-500/15 blur-[110px]" />
 
-      {/* =========================================================
-          HERO CONTENT
-      ========================================================== */}
-
+      {/* Hero content */}
       <div className="mx-auto flex min-h-[760px] max-w-7xl flex-col justify-center px-6 pb-28 pt-28 sm:px-8 lg:px-10">
         <div className="grid items-center gap-16 lg:grid-cols-[1.05fr_0.95fr]">
-          {/* =====================================================
-              LEFT SIDE
-          ====================================================== */}
-
+          {/* Left side */}
           <div className="max-w-3xl">
             {/* Small badge */}
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-green-400/20 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-300 backdrop-blur-md">
@@ -109,15 +86,11 @@ function HeroSection() {
             {/* Location */}
             <div className="mt-8 flex items-center gap-2 text-sm text-slate-400">
               <MapPin size={17} className="shrink-0 text-green-400" />
-
               <span>235 Abak Rd, Uyo, Akwa Ibom, Nigeria</span>
             </div>
           </div>
 
-          {/* =====================================================
-              RIGHT SIDE — PREMIUM PHARMACY VISUAL
-          ====================================================== */}
-
+          {/* Right side — premium pharmacy visual */}
           <div className="relative hidden lg:block">
             {/* Outer glow */}
             <div className="absolute -inset-6 rounded-[2.5rem] bg-green-500/10 blur-3xl" />
@@ -128,7 +101,7 @@ function HeroSection() {
               <div
                 className="relative h-[500px] bg-cover bg-center"
                 style={{
-                  backgroundImage: "url('/images/interior.jpg')",
+                  backgroundImage: "url('/images/pharmablaze-pharmacy.jpg')",
                 }}
               >
                 {/* Image darkness */}
@@ -140,7 +113,7 @@ function HeroSection() {
                 {/* Bottom information */}
                 <div className="absolute bottom-0 left-0 right-0 p-7">
                   <div className="mb-3 inline-flex rounded-full border border-white/20 bg-black/20 px-3 py-1.5 text-xs font-semibold text-green-300 backdrop-blur-md">
-                    PHARMABLaze PHARMACY
+                    PHARMABLAZE PHARMACY
                   </div>
 
                   <h2 className="text-2xl font-bold text-white">
@@ -178,11 +151,7 @@ function HeroSection() {
         </div>
       </div>
 
-      {/* =========================================================
-          BOTTOM FEATURE BAR
-          Inspired by the reference design
-      ========================================================== */}
-
+      {/* Bottom feature bar */}
       <div className="absolute bottom-6 left-0 right-0 px-6 sm:px-8 lg:px-10">
         <div className="mx-auto grid max-w-7xl grid-cols-1 overflow-hidden rounded-2xl border border-white/15 bg-black/25 backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-4">
           {/* Feature 1 */}
