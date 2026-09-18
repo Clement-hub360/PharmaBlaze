@@ -6,27 +6,28 @@ function HeroSection() {
     <section className="relative isolate min-h-[760px] overflow-hidden bg-slate-950 text-white">
       {/* Large hero background image */}
       <div
-        className="absolute inset-0 -z-20 bg-cover bg-center bg-no-repeat"
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: "url('/images/pha-hero.jpg.jpg')",
         }}
       />
 
       {/* Dark image overlay */}
-      <div className="absolute inset-0 -z-10 bg-slate-950/80" />
+      <div className="absolute inset-0 z-10 bg-slate-950/65" />
 
       {/* Left-to-right depth overlay */}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-slate-950 via-slate-950/90 to-slate-950/55" />
+      <div className="absolute inset-0 z-10 bg-gradient-to-r from-slate-950/90 via-slate-950/75 to-slate-950/45" />
 
       {/* Bottom fade */}
-      <div className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-t from-slate-950 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 z-10 h-56 bg-gradient-to-t from-slate-950 to-transparent" />
 
       {/* Decorative green light */}
-      <div className="pointer-events-none absolute -left-40 top-10 -z-10 h-[420px] w-[420px] rounded-full bg-green-700/25 blur-[130px]" />
-      <div className="pointer-events-none absolute right-[15%] top-24 -z-10 h-[300px] w-[300px] rounded-full bg-emerald-500/15 blur-[110px]" />
+      <div className="pointer-events-none absolute -left-40 top-10 z-10 h-[420px] w-[420px] rounded-full bg-green-700/25 blur-[130px]" />
+
+      <div className="pointer-events-none absolute right-[15%] top-24 z-10 h-[300px] w-[300px] rounded-full bg-emerald-500/15 blur-[110px]" />
 
       {/* Hero content */}
-      <div className="mx-auto flex min-h-[760px] max-w-7xl flex-col justify-center px-6 pb-28 pt-28 sm:px-8 lg:px-10">
+      <div className="relative z-20 mx-auto flex min-h-[760px] max-w-7xl flex-col justify-center px-6 pb-28 pt-28 sm:px-8 lg:px-10">
         <div className="grid items-center gap-16 lg:grid-cols-[1.05fr_0.95fr]">
           {/* Left side */}
           <div className="max-w-3xl">
@@ -152,7 +153,7 @@ function HeroSection() {
       </div>
 
       {/* Bottom feature bar */}
-      <div className="absolute bottom-6 left-0 right-0 px-6 sm:px-8 lg:px-10">
+      <div className="absolute bottom-6 left-0 right-0 z-20 px-6 sm:px-8 lg:px-10">
         <div className="mx-auto grid max-w-7xl grid-cols-1 overflow-hidden rounded-2xl border border-white/15 bg-black/25 backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-4">
           {/* Feature 1 */}
           <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:border-r lg:border-b-0">
