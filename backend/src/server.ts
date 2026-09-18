@@ -27,13 +27,17 @@ const app = express();
 
 const PORT = env.PORT;
 const HOST = "0.0.0.0";
-const FRONTEND_URL = env.FRONTEND_URL;
 
-const allowedOrigins = [
-  FRONTEND_URL,
+const normalizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
+
+const configuredFrontendOrigin = normalizeOrigin(env.FRONTEND_URL);
+
+const allowedOrigins = new Set([
+  configuredFrontendOrigin,
+  "https://pharma-blaze.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-];
+]);
 
 /*
  * ============================================================
@@ -66,7 +70,9 @@ app.use(
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+
+      if (allowedOrigins.has(normalizedOrigin)) {
         return callback(null, true);
       }
 
@@ -130,31 +136,18 @@ app.get("/api/health", (_req, res) => {
  */
 
 app.use("/api/auth", authRoutes);
-
 app.use("/api/products", productRoutes);
-
 app.use("/api/categories", categoryRoutes);
-
 app.use("/api/orders", orderRoutes);
-
 app.use("/api/contact", contactRoutes);
-
 app.use("/api/reviews", reviewRoutes);
-
 app.use("/api/blog", blogRoutes);
-
 app.use("/api/cart", cartRoutes);
-
 app.use("/api/customers", customerRoutes);
-
 app.use("/api/admin", adminRoutes);
-
 app.use("/api/admin/settings", settingsRoutes);
-
 app.use("/api/inventory", inventoryRoutes);
-
 app.use("/api/prescriptions", prescriptionRoutes);
-
 app.use("/api/wishlist", wishlistRoutes);
 
 /*
@@ -181,21 +174,13 @@ app.use(errorMiddleware);
 
 app.listen(PORT, HOST, () => {
   console.log("");
-
   console.log("🔥 PHARMABLAZE API");
-
   console.log(`🚀 Server listening on ${HOST}:${PORT}`);
-
-  console.log(`🌐 Frontend: ${FRONTEND_URL}`);
-
+  console.log(`🌐 Frontend: ${configuredFrontendOrigin}`);
   console.log(`❤️ Health: http://localhost:${PORT}/api/health`);
-
   console.log("💊 Prescriptions: /api/prescriptions");
-
   console.log("❤️ Wishlist: /api/wishlist");
-
   console.log("⚙️ Settings: /api/admin/settings");
-
   console.log("");
 
   console.log(
