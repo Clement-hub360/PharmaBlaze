@@ -28,22 +28,37 @@ const app = express();
 const PORT = env.PORT;
 const HOST = "0.0.0.0";
 
+/*
+ * Render places the application behind proxy infrastructure
+ * and forwards the original client IP using proxy headers.
+ *
+ * Trust the first proxy hop so Express can correctly determine
+ * the client IP and express-rate-limit can safely use it.
+ */
+app.set("trust proxy", 1);
+
 const normalizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, "");
 
 const configuredFrontendOrigin = normalizeOrigin(env.FRONTEND_URL);
 
 const allowedOrigins = new Set([
   configuredFrontendOrigin,
-  "https://pharma-blaze.vercel.app",
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-]);
 
-/*
- * ============================================================
- * SECURITY HEADERS
- * ============================================================
- */
+  // Production frontend
+  "https://pharma-blaze.vercel.app",
+
+  // Local development
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+
+  // Local development via 127.0.0.1
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:5176",
+]);
 
 app.use(
   helmet({
@@ -53,19 +68,9 @@ app.use(
   }),
 );
 
-/*
- * ============================================================
- * CORS
- * ============================================================
- */
-
 app.use(
   cors({
     origin(origin, callback) {
-      /*
-       * Allow requests that do not contain an Origin header,
-       * such as server-to-server requests or certain tools.
-       */
       if (!origin) {
         return callback(null, true);
       }
@@ -85,55 +90,43 @@ app.use(
   }),
 );
 
-/*
- * ============================================================
- * REQUEST BODY
- * ============================================================
- */
-
 app.use(
   express.json({
-    limit: "2mb",
+    limit: "10mb",
   }),
 );
 
-/*
- * ============================================================
- * API RATE LIMITING
- * ============================================================
- *
- * Authentication routes also have their own stricter
- * rate limiters.
- */
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb",
+  }),
+);
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+
+  max: 300,
+
   standardHeaders: true,
+
   legacyHeaders: false,
+
+  message: {
+    success: false,
+    message: "Too many requests. Please try again later.",
+  },
 });
 
 app.use("/api", apiLimiter);
 
-/*
- * ============================================================
- * HEALTH CHECK
- * ============================================================
- */
-
 app.get("/api/health", (_req, res) => {
-  res.json({
+  res.status(200).json({
     success: true,
     message: "Pharmablaze API is running",
     timestamp: new Date().toISOString(),
   });
 });
-
-/*
- * ============================================================
- * API ROUTES
- * ============================================================
- */
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
@@ -145,47 +138,20 @@ app.use("/api/blog", blogRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/admin/settings", settingsRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/prescriptions", prescriptionRoutes);
 app.use("/api/wishlist", wishlistRoutes);
-
-/*
- * ============================================================
- * 404 HANDLER
- * ============================================================
- */
+app.use("/api/settings", settingsRoutes);
 
 app.use(notFoundMiddleware);
-
-/*
- * ============================================================
- * GLOBAL ERROR HANDLER
- * ============================================================
- */
-
 app.use(errorMiddleware);
-
-/*
- * ============================================================
- * START SERVER
- * ============================================================
- */
 
 app.listen(PORT, HOST, () => {
   console.log("");
+  console.log("============================================================");
   console.log("🔥 PHARMABLAZE API");
-  console.log(`🚀 Server listening on ${HOST}:${PORT}`);
-  console.log(`🌐 Frontend: ${configuredFrontendOrigin}`);
-  console.log(`❤️ Health: http://localhost:${PORT}/api/health`);
-  console.log("💊 Prescriptions: /api/prescriptions");
-  console.log("❤️ Wishlist: /api/wishlist");
-  console.log("⚙️ Settings: /api/admin/settings");
-  console.log("");
-
-  console.log(
-    "🔐 Prescription files are served through authenticated API access.",
-  );
-
-  console.log("");
+  console.log("============================================================");
+  console.log(`🚀 API:      http://localhost:${PORT}`);
+  console.log(`🌐 Frontend: ${env.FRONTEND_URL}`);
+  console.log("============================================================");
 });
