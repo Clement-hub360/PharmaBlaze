@@ -52,12 +52,16 @@ const allowedOrigins = new Set([
   "http://localhost:5174",
   "http://localhost:5175",
   "http://localhost:5176",
+  "http://localhost:5177",
+  "http://localhost:5178",
 
   // Local development via 127.0.0.1
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "http://127.0.0.1:5175",
   "http://127.0.0.1:5176",
+  "http://127.0.0.1:5177",
+  "http://127.0.0.1:5178",
 ]);
 
 app.use(
@@ -83,7 +87,7 @@ app.use(
 
       console.warn(`CORS blocked origin: ${origin}`);
 
-      return callback(new Error("Not allowed by CORS"));
+      return callback(new Error("CORS origin is not allowed"));
     },
 
     credentials: true,
@@ -149,9 +153,9 @@ app.use(errorMiddleware);
 app.listen(PORT, HOST, () => {
   console.log("");
   console.log("============================================================");
-  console.log("🔥 PHARMABLAZE API");
+  console.log("PHARMABLAZE API");
   console.log("============================================================");
-  console.log(`🚀 API:      http://localhost:${PORT}`);
-  console.log(`🌐 Frontend: ${env.FRONTEND_URL}`);
+  console.log(`API:      http://localhost:${PORT}`);
+  console.log(`Frontend: ${env.FRONTEND_URL}`);
   console.log("============================================================");
 });

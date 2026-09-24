@@ -85,7 +85,17 @@ type ApiResponse<T> = {
   data?: T;
 };
 
+/*
+ * Admin settings are exposed by:
+ *
+ * GET  /api/settings
+ * PUT  /api/settings
+ *
+ * The backend route is protected by authenticate + requireAdmin.
+ */
 const API_BASE_URL = "https://pharmablaze-fullstack.onrender.com/api";
+
+const SETTINGS_ENDPOINT = `${API_BASE_URL}/settings`;
 
 function AdminSettings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("pharmacy");
@@ -96,13 +106,19 @@ function AdminSettings() {
   const [error, setError] = useState("");
 
   const [pharmacyName, setPharmacyName] = useState("Pharmablaze Pharmacy");
+
   const [phone, setPhone] = useState("0912 828 6533");
+
   const [email, setEmail] = useState("");
+
   const [address, setAddress] = useState(
     "2V56+V39, 235 Abak Rd, Uyo 520104, Akwa Ibom",
   );
+
   const [website, setWebsite] = useState("");
+
   const [facebook, setFacebook] = useState("");
+
   const [instagram, setInstagram] = useState("");
 
   const [openingHours, setOpeningHours] = useState<OpeningHours>({
@@ -116,22 +132,31 @@ function AdminSettings() {
   });
 
   const [storeEnabled, setStoreEnabled] = useState(true);
+
   const [allowOrders, setAllowOrders] = useState(true);
+
   const [requireConfirmation, setRequireConfirmation] = useState(true);
 
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
+
   const [deliveryFee, setDeliveryFee] = useState("1500");
+
   const [freeDeliveryMinimum, setFreeDeliveryMinimum] = useState("50000");
 
   const [paymentOnConfirmation, setPaymentOnConfirmation] = useState(true);
+
   const [onlinePayment, setOnlinePayment] = useState(false);
 
   const [emailNotifications, setEmailNotifications] = useState(true);
+
   const [orderNotifications, setOrderNotifications] = useState(true);
+
   const [reviewNotifications, setReviewNotifications] = useState(true);
+
   const [messageNotifications, setMessageNotifications] = useState(true);
 
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+
   const [sessionTimeout, setSessionTimeout] = useState("60");
 
   const tabs = [
@@ -182,7 +207,7 @@ function AdminSettings() {
         throw new Error("Your admin session has expired. Please log in again.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/admin/settings`, {
+      const response = await fetch(SETTINGS_ENDPOINT, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -233,18 +258,25 @@ function AdminSettings() {
     setRequireConfirmation(settings.requireConfirmation);
 
     setDeliveryEnabled(settings.deliveryEnabled);
+
     setDeliveryFee(String(settings.deliveryFee));
+
     setFreeDeliveryMinimum(String(settings.freeDeliveryMinimum));
 
     setPaymentOnConfirmation(settings.paymentOnConfirmation);
+
     setOnlinePayment(settings.onlinePayment);
 
     setEmailNotifications(settings.emailNotifications);
+
     setOrderNotifications(settings.orderNotifications);
+
     setReviewNotifications(settings.reviewNotifications);
+
     setMessageNotifications(settings.messageNotifications);
 
     setTwoFactorEnabled(settings.twoFactorEnabled);
+
     setSessionTimeout(String(settings.sessionTimeout));
   }
 
@@ -261,7 +293,9 @@ function AdminSettings() {
       }
 
       const parsedDeliveryFee = Number(deliveryFee);
+
       const parsedFreeDeliveryMinimum = Number(freeDeliveryMinimum);
+
       const parsedSessionTimeout = Number(sessionTimeout);
 
       if (!Number.isFinite(parsedDeliveryFee) || parsedDeliveryFee < 0) {
@@ -320,7 +354,7 @@ function AdminSettings() {
         sessionTimeout: parsedSessionTimeout,
       };
 
-      const response = await fetch(`${API_BASE_URL}/admin/settings`, {
+      const response = await fetch(SETTINGS_ENDPOINT, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -367,6 +401,7 @@ function AdminSettings() {
       <div className="flex min-h-[70vh] items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+
           <p className="text-sm font-medium text-slate-500">
             Loading pharmacy settings...
           </p>
@@ -470,6 +505,7 @@ function AdminSettings() {
                     }`}
                   >
                     <Icon className="h-5 w-5" />
+
                     {tab.label}
                   </button>
                 );
@@ -953,9 +989,13 @@ function AdminSettings() {
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 md:max-w-sm"
                     >
                       <option value="15">15 minutes</option>
+
                       <option value="30">30 minutes</option>
+
                       <option value="60">60 minutes</option>
+
                       <option value="120">120 minutes</option>
+
                       <option value="240">4 hours</option>
                     </select>
                   </div>
